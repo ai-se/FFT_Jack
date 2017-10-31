@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 import collections
 import os
 
@@ -14,6 +15,7 @@ class FFT(object):
         self.tree_depth = [0] * cnt
         self.target = "bug"
         self.goal_chase = -goal
+        self.best = -1
         self.ignore = {"name", "version", 'name.1'}
         self.train, self.test = self.split_data(df)
         self.trees = [{}] * cnt
@@ -106,6 +108,7 @@ class FFT(object):
 
 
     def find_best_tree(self):
+        roc = [None] * self.tree_cnt
         print "\n-------------------------------------------------------"
         print "ID\t MCU\t PRE\t REC\t SPEC\t ACC\t F1"
         goal = self.goal_chase
@@ -114,17 +117,34 @@ class FFT(object):
             self.describe_tree(i)
             tp, fp, tn, fn, mcu = self.tree_info[i]["general"]
             metric = self.get_performance(tp, fp, tn, fn)
+            roc[i] = [1 - metric[-SPEC], metric[-REC]]
             if not selected or metric[goal] > selected[goal]:
                 selected = [i] + metric
             print " \t ".join([str(x) for x in [i, round(mcu,1)] + metric])
         print "-------------------------------------------------------"
         print "The selected tree id is :" + str(selected[0])
+        # plot ROC
+        fig, ax = plt.subplots()
+        x, y = zip(*roc)
+        ax.scatter(x, y, s=20)
+        ax.scatter(x[selected[0]], y[selected[0]], c='r', s=30)
+        x, y = [0.001 * i for i in range(1000)], [0.001 * i for i in range(1000)]
+        ax.scatter(x, y, s=4, marker=".")
+        for i in range(self.tree_cnt):
+            ax.annotate(i, (roc[i][0], roc[i][1]))
+        ax.set_title('ROC')
+        ax.set_xlabel("1 - Specificity (FAR)")
+        ax.set_ylabel("Sensitivity (HR)")
+        ax.set_xlim(0, 1.05)
+        ax.set_ylim(0, 1.05)
+        plt.show()
         return selected[0]
 
 
     def plot_tree(self, t_id=-1, show_metrics=False):
         if t_id == -1:
             t_id = self.find_best_tree()
+            self.best = t_id
 
         if not self.tree_plotted[t_id]:
             self.tree_plotted[t_id] = True
@@ -185,7 +205,7 @@ csv_path = os.path.join(cwd, "ivy-2.0.csv")
 df = pd.read_csv(csv_path)
 print df.describe()
 
-fft = FFT(df, goal=REC)
+fft = FFT(df, goal=F1)
 fft.build_trees()
 fft.plot_tree(show_metrics=True)
 # fft.grow(fft.train)
