@@ -10,12 +10,15 @@ import os
 
 from ABCD import ABCD
 
-PRE, REC, SPEC, ACC, F1 = 5, 4, 3, 2, 1
+PRE, REC, SPEC, FPR, ACC, F1 = 6, 5, 4, 3, 2, 1
 # training / testing split
 class FFT(object):
-    def __init__(self, df=None, max_level=4, goal=PRE):
+    def __init__(self, df=None, max_level=4, goal=REC):
         cnt = 2 ** max_level
         self.df = df
+        self.title = ""
+        self.img_path = ""
+        self.train, self.test = self.split_data(df)
         self.max_level = max_level
         self.tree_cnt = cnt
         self.tree_depth = [0] * cnt
@@ -23,13 +26,13 @@ class FFT(object):
         self.goal_chase = -goal
         self.best = -1
         self.ignore = {"name", "version", 'name.1'}
-        self.train, self.test = self.split_data(df)
         self.trees = [{}] * cnt
         self.tree_plotted = [False] * cnt
         self.performance = [collections.defaultdict(dict) for _ in xrange(cnt)]
         self.selected = [{} for _ in range(cnt)]
         self.tree_info = [collections.defaultdict(dict) for _ in xrange(cnt)]
         self.soa = None
+        self.soa_name = ["SL", "NB", "EM", "SMO"]
 
 
     "Get all possible tree structure"
@@ -48,6 +51,8 @@ class FFT(object):
 
     "Split data into training and testing"
     def split_data(self, df):
+        if not df:
+            return None, None
         mask = np.random.rand(len(df)) <= 0.6
         train, test = df[mask], df[~mask]
         return train, test
@@ -65,8 +70,8 @@ class FFT(object):
         fp = len(pos.loc[pos[self.target] == 0])
         tn = len(neg.loc[neg[self.target] == 0])
         fn = len(neg.loc[neg[self.target] == 1])
-        pre, rec, spec, acc, f1 = get_performance(tp, fp, tn, fn)
-        return tp, fp, tn, fn, pre, rec, spec, acc, f1
+        pre, rec, spec, fpr, acc, f1 = get_performance(tp, fp, tn, fn)
+        return tp, fp, tn, fn, pre, rec, spec, fpr, acc, f1
 
 
     "Given tree and level, get the node info"
@@ -83,11 +88,11 @@ class FFT(object):
             self.tree_info[t_id]["general"] = [0] * 5 # TP, FP, TN, FN, MCU
         tp, fp, tn, fn = self.performance[t_id][i][(c, d, t, r)][:4]
         if (r and not reverse) or (r == 0 and reverse):
-            cues_used = 1.0 * (i + 1) * (tp + fp) / self.df.shape[0]
+            cues_used = 1.0 * (i + 1) * (tp + fp) / self.train.shape[0]
             self.tree_info[t_id]["general"] = [x + y for x, y in zip(self.tree_info[t_id]["general"], [tp, fp, 0, 0, cues_used])]
             metric = "\tFalse Alarm: " + str(fp) + ", Hit: " + str(tp)
         else:
-            cues_used = 1.0 * (i + 1) * (tn + fn) / self.df.shape[0]
+            cues_used = 1.0 * (i + 1) * (tn + fn) / self.train.shape[0]
             self.tree_info[t_id]["general"] = [x + y for x, y in zip(self.tree_info[t_id]["general"], [0, 0, tn, fn, cues_used])]
             metric = "\tCorrect Rej: " + str(tn) + ", Miss: " + str(fn)
 
@@ -103,10 +108,10 @@ class FFT(object):
                 self.get_node_info(t_id, i, reverse=True)
 
 
-
     def find_best_tree(self):
         roc = [None] * self.tree_cnt
-        print "\n-------------------------------------------------------"
+        print "#### Performance for all FFT generated. ####"
+        print "-------------------------------------------------------"
         print "ID\t MCU\t PRE\t REC\t SPEC\t ACC\t F1"
         goal = self.goal_chase
         selected = None
@@ -114,21 +119,22 @@ class FFT(object):
             self.describe_tree(i)
             tp, fp, tn, fn, mcu = self.tree_info[i]["general"]
             metric = get_performance(tp, fp, tn, fn)
-            roc[i] = [1-metric[-SPEC], metric[-REC]]
-            if not selected or metric[goal] > selected[goal]:
-                selected = [i] + metric
+            roc[i] = [metric[-FPR], metric[-REC]]
+            dist2heaven = roc[i][0]**2 + (1-roc[i][1])**2
+            if not selected or dist2heaven < selected[1]:
+                selected = [i] + [dist2heaven]
             print " \t ".join([str(x) for x in [i, round(mcu,1)] + metric])
         print "-------------------------------------------------------"
-        print "The selected tree id is :" + str(selected[0])
+        print "\nThe selected FFT id is :" + str(selected[0])
+        print "The selected FFT constructed as the following tree: "
 
         # Get the state of the art classifiers.
         if not self.soa:
             self.get_soa()
 
-
         # plot ROC
         fig, ax = plt.subplots()
-        ax.set_title('ROC')
+        ax.set_title(self.title)
         ax.set_xlabel("False Alarm Rates")
         ax.set_ylabel("Recall")
         ax.set_xlim(-0.05, 1.05)
@@ -137,19 +143,22 @@ class FFT(object):
         x, y = [0.001 * i for i in range(1000)], [0.001 * i for i in range(1000)]
         ax.scatter(x, y, s=4)
         # plot fft peformances
-        ax.scatter(x[selected[0]], y[selected[0]], c='r', s=100)
-        ax.annotate("B_FFT", (x[selected[0]], y[selected[0]]))
         for i in range(self.tree_cnt):
             ax.scatter(roc[i][0], roc[i][1], s=100)
             ax.annotate(i, (roc[i][0], roc[i][1]))
+        # plot the best fft in red
+        s_id = selected[0]
+        ax.scatter(roc[s_id][0], roc[s_id][1], c='r', s=100)
+        ax.annotate("B_FFT", (roc[s_id][0], roc[s_id][1]))
+
         # plot state of the art performance
         soa_color = ['g', 'c', 'm', 'y']
-        soa_name = ["SL", "NB", "EM", "SMO"]
         for i in range(4):
-            ax.scatter(1-self.soa[i][-3], self.soa[i][-4], c=soa_color[i], s=100)
-            ax.annotate(soa_name[i], (1-self.soa[i][-3], self.soa[i][-4]))
-        plt.show()
-        return selected[0]
+            ax.scatter(self.soa[i][-FPR], self.soa[i][-REC], c=soa_color[i], s=100)
+            ax.annotate(self.soa_name[i], (self.soa[i][-FPR], self.soa[i][-REC]))
+        # plt.show()
+        plt.savefig(self.img_path)
+        return s_id
 
 
     def plot_tree(self, t_id=-1, show_metrics=False):
@@ -168,14 +177,21 @@ class FFT(object):
         print self.tree_info[t_id][i]["description"][1] + \
               (self.tree_info[t_id][i]["metric"][1] if show_metrics else "")
         tp, fp, tn, fn, mcu = self.tree_info[t_id]["general"]
+
+        print "\n#### Performance of the best FFT ####"
         print "======================================="
         print "\t".join([x.ljust(6, " ") for x in ["TP", "FP", "TN", "FN"]])
         print "\t".join([str(x).ljust(6, " ") for x in [tp, fp, tn, fn]])
-        print "\t".join([str(x).ljust(6, " ") for x in ["MCU", "PRE", "REC", "SPEC", "ACC", "F1"]])
+        print "\t".join([str(x).ljust(6, " ") for x in ["MCU", "PRE", "REC", "SPEC", "FPR", "ACC", "F1"]])
         print "\t".join([str(x).ljust(6, " ") for x in [round(mcu,1)] + get_performance(tp, fp, tn, fn)])
+        print "\n#### Performance of the State-Of-The-Art Models ####"
         print "======================================="
+        for i in range(len(self.soa)):
+            print "\t".join([str(x).ljust(6, " ") for x in [self.soa_name[i]] + self.soa[i][4:]])
 
 
+
+    "Grow the t_id_th tree for the level with the given data"
     def grow(self, data, t_id, level):
         """
         :param data: current data for future tree growth
@@ -196,10 +212,12 @@ class FFT(object):
                 metrics = self.get_metrics(data, cue, direction, threshold, decision)
                 self.performance[t_id][level][(cue, direction, threshold, decision)] = metrics
                 goal = self.goal_chase
-                if not cur_selected or metrics[goal] > self.performance[t_id][level][cur_selected][goal]:
-                    cur_selected = (cue, direction, threshold, decision)
-        self.selected[t_id][level] = cur_selected
-        s_cue, s_dirc, s_thre, s_decision = cur_selected
+                dist2heaven = metrics[-FPR]**2 + (1-metrics[-REC])**2
+                # if not cur_selected or metrics[goal] > self.performance[t_id][level][cur_selected][goal]:
+                if not cur_selected or dist2heaven < cur_selected[1]:
+                    cur_selected = [(cue, direction, threshold, decision), dist2heaven]
+        self.selected[t_id][level] = cur_selected[0]
+        s_cue, s_dirc, s_thre, s_decision = cur_selected[0]
         undecided = data.loc[data[s_cue] <= s_thre] if s_dirc == ">" else data.loc[data[s_cue] >= s_thre]
         self.grow(undecided, t_id, level + 1)
 
@@ -226,15 +244,21 @@ class FFT(object):
         self.soa = [m_SL, m_NB, m_EM, m_SMO]
 
 
+    def run_all(self):
+        self.get_soa()
+        self.build_trees()
+        self.plot_tree(show_metrics=True)
+
 
 "Given TP, FP, TN, FN, get all the other metrics. "
 def get_performance(tp, fp, tn, fn):
     pre = 1.0 * tp / (tp + fp) if (tp + fp) != 0 else 0
     rec = 1.0 * tp / (tp + fn) if (tp + fn) != 0 else 0
     spec = 1.0 * tn / (tn + fp) if (tn + fp) != 0 else 0
+    fpr = 1 - spec
     acc = 1.0 * (tp + tn) / (tp + tn + fp + fn) if (tp + tn + fp + fn) != 0 else 0
     f1 = 2.0 * tp / (2.0 * tp + fp + fn) if (2.0 * tp + fp + fn) != 0 else 0
-    return [round(x, 1) for x in [pre, rec, spec, acc, f1]]
+    return [round(x, 1) for x in [pre, rec, spec, fpr, acc, f1]]
 
 
 def get_abcd(predict, truth):
@@ -259,20 +283,47 @@ def do_classification(train_data, test_data, train_label, test_label, clf=''):
     clf.fit(train_data, train_label)
     prediction = clf.predict(test_data)
     tp, fp, tn, fn = get_abcd(prediction, np.array(test_label))
-    pre, rec, spec, acc, f1 = get_performance(tp, fp, tn, fn)
-    return tp, fp, tn, fn, pre, rec, spec, acc, f1
+    pre, rec, spec, fpr, acc, f1 = get_performance(tp, fp, tn, fn)
+    return [tp, fp, tn, fn, pre, rec, spec, fpr, acc, f1]
 
 
 cwd = os.getcwd()
-csv_path = os.path.join(cwd, "ivy-2.0.csv")
-df = pd.read_csv(csv_path)
-print df.describe()
+data_path = os.path.join(cwd, "data")
+data = {"@ivy":     ["ivy-1.1.csv", "ivy-1.4.csv", "ivy-2.0.csv"],\
+        "@lucene":  ["lucene-2.0.csv", "lucene-2.2.csv", "lucene-2.4.csv"],\
+        "@poi":     ["poi-1.5.csv", "poi-2.0.csv", "poi-2.5.csv", "poi-3.0.csv"],\
+        "@synapse": ["synapse-1.0.csv", "synapse-1.1.csv", "synapse-1.2.csv"],\
+        "@velocity":["velocity-1.4.csv", "velocity-1.5.csv", "velocity-1.6.csv"]}
 
-fft = FFT(df, goal=PRE)
-fft.get_soa()
-fft.build_trees()
-fft.plot_tree(show_metrics=True)
-# fft.grow(fft.train)
-# fft.describe_tree(show_metrics=True)
+for name, files in data.iteritems():
+    print "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    print name
+    paths = [os.path.join(data_path, file_name) for file_name in files]
+    train_df = pd.concat([pd.read_csv(path) for path in paths[:-1]])
+    test_df = pd.read_csv(paths[-1])
+    print "training on: " + ', '.join(files[:-1])
+    print "testing on: " + files[-1]
 
-print "done"
+    fft = FFT()
+    fft.title = name
+    fft.img_path = os.path.join(data_path, name + ".png")
+    fft.train, fft.test = train_df, test_df
+    fft.run_all()
+
+
+# print "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+# print "@Ivy data"
+# ivy_path_0 = os.path.join(data_path, "ivy-1.1.csv")
+# ivy_path_1 = os.path.join(data_path, "ivy-1.4.csv")
+# ivy_path_2 = os.path.join(data_path, "ivy-2.0.csv")
+# df0 = pd.read_csv(ivy_path_0)
+# df1 = pd.read_csv(ivy_path_1)
+# df2 = pd.read_csv(ivy_path_2)
+#
+# ivy = FFT()
+# ivy.title = "IVY ROC"
+# ivy.train, ivy.test = pd.concat([df0, df1]), df2
+# ivy.run_all()
+
+
+
