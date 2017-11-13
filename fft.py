@@ -9,8 +9,9 @@ import collections
 import os
 
 from ABCD import ABCD
-
-PRE, REC, SPEC, FPR, ACC, F1 = 6, 5, 4, 3, 2, 1
+SEED = 666
+PRE, REC, SPEC, FPR, NPV, ACC, F1 = 7, 6, 5, 4, 3, 2, 1
+COLORS = ["#800000", "#6B8E23", "#0000CD", "#8A2BE2", "#FFFF00", "#00FF00", "#00FFFF", "#FF00FF"]
 # training / testing split
 class FFT(object):
     def __init__(self, df=None, max_level=4, goal=REC):
@@ -18,11 +19,12 @@ class FFT(object):
         self.df = df
         self.title = ""
         self.img_path = ""
-        self.train, self.test = self.split_data(df)
+        #self.train, self.test = self.split_data(df)
         self.max_level = max_level
         self.tree_cnt = cnt
         self.tree_depth = [0] * cnt
         self.target = "bug"
+        self.criteria = "Dist2Heave"
         self.goal_chase = -goal
         self.best = -1
         self.ignore = {"name", "version", 'name.1'}
@@ -53,6 +55,7 @@ class FFT(object):
     def split_data(self, df):
         if not df:
             return None, None
+        np.random.seed(888)
         mask = np.random.rand(len(df)) <= 0.6
         train, test = df[mask], df[~mask]
         return train, test
@@ -70,8 +73,8 @@ class FFT(object):
         fp = len(pos.loc[pos[self.target] == 0])
         tn = len(neg.loc[neg[self.target] == 0])
         fn = len(neg.loc[neg[self.target] == 1])
-        pre, rec, spec, fpr, acc, f1 = get_performance(tp, fp, tn, fn)
-        return tp, fp, tn, fn, pre, rec, spec, fpr, acc, f1
+        pre, rec, spec, fpr, npv, acc, f1 = get_performance(tp, fp, tn, fn)
+        return tp, fp, tn, fn, pre, rec, spec, fpr, npv, acc, f1
 
 
     "Given tree and level, get the node info"
@@ -112,7 +115,7 @@ class FFT(object):
         roc = [None] * self.tree_cnt
         print "#### Performance for all FFT generated. ####"
         print "-------------------------------------------------------"
-        print "ID\t MCU\t PRE\t REC\t SPEC\t ACC\t F1"
+        print "ID\t MCU\t PRE\t REC\t SPEC\t NPV\t ACC\t F1"
         goal = self.goal_chase
         selected = None
         for i in range(self.tree_cnt):
@@ -134,7 +137,7 @@ class FFT(object):
 
         # plot ROC
         fig, ax = plt.subplots()
-        ax.set_title(self.title)
+        ax.set_title('FFT splits based on: ' + self.criteria + '  |  Data: ' + self.title)
         ax.set_xlabel("False Alarm Rates")
         ax.set_ylabel("Recall")
         ax.set_xlim(-0.05, 1.05)
@@ -142,20 +145,33 @@ class FFT(object):
         # plot diagonal
         x, y = [0.001 * i for i in range(1000)], [0.001 * i for i in range(1000)]
         ax.scatter(x, y, s=4)
+
         # plot fft peformances
-        for i in range(self.tree_cnt):
-            ax.scatter(roc[i][0], roc[i][1], s=100)
-            ax.annotate(i, (roc[i][0], roc[i][1]))
-        # plot the best fft in red
+        tmp = {"Accuracy":0, "Dist2Heave": 1, "Gini": 2, "InfoGain": 3}
+        k = tmp[self.criteria]
         s_id = selected[0]
-        ax.scatter(roc[s_id][0], roc[s_id][1], c='r', s=100)
+        for i in range(self.tree_cnt):
+            if i == s_id:
+                continue
+            ax.scatter(roc[i][0], roc[i][1], c=COLORS[k], s=100)
+            ax.annotate(i, (roc[i][0], roc[i][1]))
+        t = 0 if s_id != 0 else 1
+        ax.scatter(roc[t][0], roc[t][1], c=COLORS[k], s=100, label="FFT")
+
+        # plot the best fft in red
+        ax.scatter(roc[s_id][0], roc[s_id][1], c='r', s=100, label="Best_FFT")
         ax.annotate("B_FFT", (roc[s_id][0], roc[s_id][1]))
 
         # plot state of the art performance
-        soa_color = ['g', 'c', 'm', 'y']
         for i in range(4):
-            ax.scatter(self.soa[i][-FPR], self.soa[i][-REC], c=soa_color[i], s=100)
+            ax.scatter(self.soa[i][-FPR], self.soa[i][-REC], c=COLORS[i+4], s=100, label=self.soa_name[i])
             ax.annotate(self.soa_name[i], (self.soa[i][-FPR], self.soa[i][-REC]))
+
+
+
+        legend = ax.legend(loc='lower right', shadow=True, fontsize='small')
+        # Put a nicer background color on the legend.
+        legend.get_frame().set_facecolor('#CEE5DD')
         # plt.show()
         plt.savefig(self.img_path)
         return s_id
@@ -182,7 +198,7 @@ class FFT(object):
         print "======================================="
         print "\t".join([x.ljust(6, " ") for x in ["TP", "FP", "TN", "FN"]])
         print "\t".join([str(x).ljust(6, " ") for x in [tp, fp, tn, fn]])
-        print "\t".join([str(x).ljust(6, " ") for x in ["MCU", "PRE", "REC", "SPEC", "FPR", "ACC", "F1"]])
+        print "\t".join([str(x).ljust(6, " ") for x in ["MCU", "PRE", "REC", "SPEC", "FPR", "NPV", "ACC", "F1"]])
         print "\t".join([str(x).ljust(6, " ") for x in [round(mcu,1)] + get_performance(tp, fp, tn, fn)])
         print "\n#### Performance of the State-Of-The-Art Models ####"
         print "======================================="
@@ -212,10 +228,25 @@ class FFT(object):
                 metrics = self.get_metrics(data, cue, direction, threshold, decision)
                 self.performance[t_id][level][(cue, direction, threshold, decision)] = metrics
                 goal = self.goal_chase
-                dist2heaven = metrics[-FPR]**2 + (1-metrics[-REC])**2
+                if self.criteria == "Accuracy":
+                    score = -metrics[-ACC]
+                elif self.criteria == "Dist2Heave":
+                    score = metrics[-FPR]**2 + (1-metrics[-REC])**2
+                elif self.criteria == "Gini":
+                    p1 = metrics[-PRE]        # target == 1 for the positive split
+                    p0 = 1 - metrics[-NPV]    # target == 1 for the negative split
+                    score = 1 - p0**2 - p1**2
+                else:   # information gain
+                    P, N = metrics[0] + metrics[3], metrics[1] + metrics[2]
+                    p = 1.0 * P / (P + N) if P + N > 0 else 0   # before the split
+                    p1 = metrics[-PRE]  # the positive part of the split
+                    p0 = 1 - metrics[-NPV]  # the negative part of the split
+                    I, I0, I1 = (-x * np.log2(x) if x != 0 else 0 for x in (p, p0, p1))
+                    I01 = p * I1 + (1-p) * I0
+                    score = -(I - I01)     # the smaller the better.
                 # if not cur_selected or metrics[goal] > self.performance[t_id][level][cur_selected][goal]:
-                if not cur_selected or dist2heaven < cur_selected[1]:
-                    cur_selected = [(cue, direction, threshold, decision), dist2heaven]
+                if not cur_selected or score < cur_selected[1]:
+                    cur_selected = [(cue, direction, threshold, decision), score]
         self.selected[t_id][level] = cur_selected[0]
         s_cue, s_dirc, s_thre, s_decision = cur_selected[0]
         undecided = data.loc[data[s_cue] <= s_thre] if s_dirc == ">" else data.loc[data[s_cue] >= s_thre]
@@ -231,10 +262,10 @@ class FFT(object):
 
     "Get performance of state of the art classifiers"
     def get_soa(self):
-        SL = LogisticRegression()   # simple logistic
+        SL = LogisticRegression(random_state=SEED)   # simple logistic
         NB = GaussianNB()           # Naive Bayes\
-        EM = GaussianMixture()      # Expectation Maximization
-        SMO = LinearSVC()           # Support Vector Machines
+        EM = GaussianMixture(random_state=SEED, init_params='kmeans', n_components=2)      # Expectation Maximization
+        SMO = LinearSVC(random_state=SEED)           # Support Vector Machines
         train_data, train_label = self.train.iloc[:, 3:-1], self.train.iloc[:, -1]
         test_data, test_label = self.test.iloc[:, 3:-1], self.test.iloc[:, -1]
         m_SL = do_classification(train_data, test_data, train_label, test_label, SL)
@@ -256,9 +287,10 @@ def get_performance(tp, fp, tn, fn):
     rec = 1.0 * tp / (tp + fn) if (tp + fn) != 0 else 0
     spec = 1.0 * tn / (tn + fp) if (tn + fp) != 0 else 0
     fpr = 1 - spec
+    npv = 1.0 * tn / (tn + fn) if (tn + fn) != 0 else 0
     acc = 1.0 * (tp + tn) / (tp + tn + fp + fn) if (tp + tn + fp + fn) != 0 else 0
     f1 = 2.0 * tp / (2.0 * tp + fp + fn) if (2.0 * tp + fp + fn) != 0 else 0
-    return [round(x, 1) for x in [pre, rec, spec, fpr, acc, f1]]
+    return [round(x, 1) for x in [pre, rec, spec, fpr, npv, acc, f1]]
 
 
 def get_abcd(predict, truth):
@@ -283,8 +315,8 @@ def do_classification(train_data, test_data, train_label, test_label, clf=''):
     clf.fit(train_data, train_label)
     prediction = clf.predict(test_data)
     tp, fp, tn, fn = get_abcd(prediction, np.array(test_label))
-    pre, rec, spec, fpr, acc, f1 = get_performance(tp, fp, tn, fn)
-    return [tp, fp, tn, fn, pre, rec, spec, fpr, acc, f1]
+    pre, rec, spec, fpr, npv, acc, f1 = get_performance(tp, fp, tn, fn)
+    return [tp, fp, tn, fn, pre, rec, spec, fpr, npv, acc, f1]
 
 
 cwd = os.getcwd()
@@ -295,35 +327,25 @@ data = {"@ivy":     ["ivy-1.1.csv", "ivy-1.4.csv", "ivy-2.0.csv"],\
         "@synapse": ["synapse-1.0.csv", "synapse-1.1.csv", "synapse-1.2.csv"],\
         "@velocity":["velocity-1.4.csv", "velocity-1.5.csv", "velocity-1.6.csv"]}
 
+
 for name, files in data.iteritems():
     print "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     print name
     paths = [os.path.join(data_path, file_name) for file_name in files]
     train_df = pd.concat([pd.read_csv(path) for path in paths[:-1]])
     test_df = pd.read_csv(paths[-1])
+    train_df['bug'] = train_df['bug'].apply(lambda x: 0 if x == 0 else 1)
+    test_df['bug'] = test_df['bug'].apply(lambda x: 0 if x == 0 else 1)
     print "training on: " + ', '.join(files[:-1])
     print "testing on: " + files[-1]
 
-    fft = FFT()
-    fft.title = name
-    fft.img_path = os.path.join(data_path, name + ".png")
-    fft.train, fft.test = train_df, test_df
-    fft.run_all()
-
-
-# print "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-# print "@Ivy data"
-# ivy_path_0 = os.path.join(data_path, "ivy-1.1.csv")
-# ivy_path_1 = os.path.join(data_path, "ivy-1.4.csv")
-# ivy_path_2 = os.path.join(data_path, "ivy-2.0.csv")
-# df0 = pd.read_csv(ivy_path_0)
-# df1 = pd.read_csv(ivy_path_1)
-# df2 = pd.read_csv(ivy_path_2)
-#
-# ivy = FFT()
-# ivy.title = "IVY ROC"
-# ivy.train, ivy.test = pd.concat([df0, df1]), df2
-# ivy.run_all()
-
+    for criteria in ["Dist2Heave", "Accuracy", "Gini", "InfoGain"]:
+        print "...................... " + criteria + " ......................"
+        fft = FFT()
+        fft.criteria = criteria
+        fft.title = name
+        fft.img_path = os.path.join(data_path, fft.criteria + "_" + name + ".png")
+        fft.train, fft.test = train_df, test_df
+        fft.run_all()
 
 
