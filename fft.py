@@ -6,12 +6,23 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.mixture import GaussianMixture
 from sklearn.svm import LinearSVC
 import collections
+import pickle
 import os
+
+
+def save_obj(obj, path):
+    with open(path, 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+
+def load_obj(path):
+    with open(path, 'rb') as f:
+        return pickle.load(f)
 
 from ABCD import ABCD
 SEED = 666
 PRE, REC, SPEC, FPR, NPV, ACC, F1 = 7, 6, 5, 4, 3, 2, 1
-COLORS = ["#800000", "#6B8E23", "#0000CD", "#8A2BE2", "#FFFF00", "#00FF00", "#00FFFF", "#FF00FF"]
+COLORS = ["#800000", "#6B8E23", "#0000CD", "#FFFF00", "#8A2BE2",  "#00FF00", "#00FFFF", "#FF00FF"]
+MARKERS = ['v', 2, ',', 'h',  ">", 's', '*', 'p', '8']
 # training / testing split
 class FFT(object):
     def __init__(self, df=None, max_level=4, goal=REC):
@@ -24,7 +35,7 @@ class FFT(object):
         self.tree_cnt = cnt
         self.tree_depth = [0] * cnt
         self.target = "bug"
-        self.criteria = "Dist2Heave"
+        self.criteria = "Dist2Heaven"
         self.goal_chase = -goal
         self.best = -1
         self.ignore = {"name", "version", 'name.1'}
@@ -32,6 +43,7 @@ class FFT(object):
         self.tree_plotted = [False] * cnt
         self.performance = [collections.defaultdict(dict) for _ in xrange(cnt)]
         self.selected = [{} for _ in range(cnt)]
+        self.roc = [None] * self.tree_cnt
         self.tree_info = [collections.defaultdict(dict) for _ in xrange(cnt)]
         self.soa = None
         self.soa_name = ["SL", "NB", "EM", "SMO"]
@@ -112,7 +124,6 @@ class FFT(object):
 
 
     def find_best_tree(self):
-        roc = [None] * self.tree_cnt
         print "#### Performance for all FFT generated. ####"
         print "-------------------------------------------------------"
         print "ID\t MCU\t PRE\t REC\t SPEC\t NPV\t ACC\t F1"
@@ -122,8 +133,8 @@ class FFT(object):
             self.describe_tree(i)
             tp, fp, tn, fn, mcu = self.tree_info[i]["general"]
             metric = get_performance(tp, fp, tn, fn)
-            roc[i] = [metric[-FPR], metric[-REC]]
-            dist2heaven = roc[i][0]**2 + (1-roc[i][1])**2
+            self.roc[i] = [metric[-FPR], metric[-REC]]
+            dist2heaven = self.roc[i][0]**2 + (1-self.roc[i][1])**2
             if not selected or dist2heaven < selected[1]:
                 selected = [i] + [dist2heaven]
             print " \t ".join([str(x) for x in [i, round(mcu,1)] + metric])
@@ -147,7 +158,8 @@ class FFT(object):
         ax.scatter(x, y, s=4)
 
         # plot fft peformances
-        tmp = {"Accuracy":0, "Dist2Heave": 1, "Gini": 2, "InfoGain": 3}
+        roc = self.roc
+        tmp = {"Accuracy":0, "Dist2Heaven": 1, "Gini": 2, "InfoGain": 3}
         k = tmp[self.criteria]
         s_id = selected[0]
         for i in range(self.tree_cnt):
@@ -159,15 +171,14 @@ class FFT(object):
         ax.scatter(roc[t][0], roc[t][1], c=COLORS[k], s=100, label="FFT")
 
         # plot the best fft in red
-        ax.scatter(roc[s_id][0], roc[s_id][1], c='r', s=100, label="Best_FFT")
+        ax.scatter(roc[s_id][0], roc[s_id][1], c='r', marker=MARKERS[0], s=100, label="Best_FFT")
         ax.annotate("B_FFT", (roc[s_id][0], roc[s_id][1]))
 
         # plot state of the art performance
         for i in range(4):
-            ax.scatter(self.soa[i][-FPR], self.soa[i][-REC], c=COLORS[i+4], s=100, label=self.soa_name[i])
+            ax.scatter(self.soa[i][-FPR], self.soa[i][-REC], s=120,\
+                       c=COLORS[i + 4], marker=MARKERS[i + 4], label=self.soa_name[i])
             ax.annotate(self.soa_name[i], (self.soa[i][-FPR], self.soa[i][-REC]))
-
-
 
         legend = ax.legend(loc='lower right', shadow=True, fontsize='small')
         # Put a nicer background color on the legend.
@@ -230,7 +241,7 @@ class FFT(object):
                 goal = self.goal_chase
                 if self.criteria == "Accuracy":
                     score = -metrics[-ACC]
-                elif self.criteria == "Dist2Heave":
+                elif self.criteria == "Dist2Heaven":
                     score = metrics[-FPR]**2 + (1-metrics[-REC])**2
                 elif self.criteria == "Gini":
                     p1 = metrics[-PRE]        # target == 1 for the positive split
@@ -262,15 +273,16 @@ class FFT(object):
 
     "Get performance of state of the art classifiers"
     def get_soa(self):
-        SL = LogisticRegression(random_state=SEED)   # simple logistic
-        NB = GaussianNB()           # Naive Bayes\
-        EM = GaussianMixture(random_state=SEED, init_params='kmeans', n_components=2)      # Expectation Maximization
-        SMO = LinearSVC(random_state=SEED)           # Support Vector Machines
         train_data, train_label = self.train.iloc[:, 3:-1], self.train.iloc[:, -1]
         test_data, test_label = self.test.iloc[:, 3:-1], self.test.iloc[:, -1]
+
+        SL = LogisticRegression(random_state=SEED)   # simple logistic
+        NB = GaussianNB()           # Naive Bayes\
+        EM = GaussianMixture(random_state=SEED, n_components=2, covariance_type='spherical')  # Expectation Maximization
+        SMO = LinearSVC(random_state=SEED)           # Support Vector Machines
         m_SL = do_classification(train_data, test_data, train_label, test_label, SL)
         m_NB = do_classification(train_data, test_data, train_label, test_label, NB)
-        m_EM = do_classification(train_data, test_data, train_label, test_label, EM)
+        m_EM = do_classification(train_data, test_data, train_label, test_label, EM, isGMM=True)
         m_SMO = do_classification(train_data, test_data, train_label, test_label, SMO)
         self.soa = [m_SL, m_NB, m_EM, m_SMO]
 
@@ -309,14 +321,75 @@ def get_abcd(predict, truth):
     return tp, fp, tn, fn
 
 
-def do_classification(train_data, test_data, train_label, test_label, clf=''):
+def do_classification(train_data, test_data, train_label, test_label, clf='', isGMM=False):
     if not clf:
         clf = LinearSVC()
-    clf.fit(train_data, train_label)
-    prediction = clf.predict(test_data)
-    tp, fp, tn, fn = get_abcd(prediction, np.array(test_label))
+    X_train = train_data.values
+    y_train = train_label.values
+    X_test = test_data.values
+    y_test = test_label.values
+    if isGMM:
+        clf.means_ = np.array([X_train[y_train == i].mean(axis=0)
+                                      for i in xrange(clf.n_components)])
+        clf.fit(X_train)
+    else:
+        clf.fit(X_train, y_train)
+    prediction = clf.predict(X_test)
+    tp, fp, tn, fn = get_abcd(prediction, y_test)
     pre, rec, spec, fpr, npv, acc, f1 = get_performance(tp, fp, tn, fn)
     return [tp, fp, tn, fn, pre, rec, spec, fpr, npv, acc, f1]
+
+
+def plot_compare(name, fft1, fft2):
+    # plot ROC
+    fig, ax = plt.subplots()
+    ax.set_title('FFT Comparison |  Data: ' + name)
+    ax.set_xlabel("False Alarm Rates")
+    ax.set_ylabel("Recall")
+    ax.set_xlim(-0.05, 1.05)
+    ax.set_ylim(-0.05, 1.05)
+    # plot diagonal
+    x, y = [0.001 * i for i in range(1000)], [0.001 * i for i in range(1000)]
+    ax.scatter(x, y, s=4)
+
+    # plot fft peformances
+    tmp = {"Accuracy": 0, "Dist2Heaven": 1, "Gini": 2, "InfoGain": 3}
+    markers = ['*', 'o']
+    colors = ['#800000', '#6B8E23', '#65ff00', '#ff0000']
+    for fft in [fft1, fft2]:
+        roc = fft.roc
+        s_id = fft.best
+        k = tmp[fft.criteria]
+        for i in range(fft.tree_cnt):
+            if i == s_id:
+                continue
+            ax.scatter(roc[i][0], roc[i][1], marker=markers[k], c=colors[k], s=400-k*300)
+            ax.annotate(i, (roc[i][0], roc[i][1]))
+        t = 0 if s_id != 0 else 1
+        ax.scatter(roc[t][0], roc[t][1], c=colors[k], marker=markers[k], s=400-k*300, label="FFT(" + fft.criteria + ")")
+
+        # plot the best fft
+        ax.scatter(roc[s_id][0], roc[s_id][1], c=colors[-k-1], \
+               marker=markers[k], s=400-k*300, label="Best_FFT(" + fft.criteria + ")")
+        ax.annotate("B_FFT(" + fft.criteria[0] + ")", (roc[s_id][0], roc[s_id][1]))
+
+    # # plot the best fft in red
+    # ax.scatter(fft1.roc[fft1.best][0], fft1.roc[fft1.best][1], c='m', \
+    #            marker=markers[0], s=100, label="Best_FFT(" + fft1.criteria + ")")
+    # ax.scatter(fft2.roc[fft2.best][0], fft2.roc[fft2.best][1], c='#00FF00', \
+    #            marker=markers[1], s=100, label="Best_FFT(" + fft2.criteria + ")")
+    #
+    # ax.annotate("B_FFT(" + fft1.criteria[0] + ")", (fft1.roc[fft1.best][0], fft1.roc[fft1.best][1]))
+    # ax.annotate("B_FFT(" + fft2.criteria[0] + ")", (fft2.roc[fft2.best][0], fft2.roc[fft2.best][1]))
+
+    legend = ax.legend(loc='lower right', shadow=True, fontsize='small')
+    # Put a nicer background color on the legend.
+    legend.get_frame().set_facecolor('#CEE5DD')
+    # plt.show()
+
+    img_path = os.path.join(data_path, "Compare_" + name + ".png")
+    plt.savefig(img_path)
+
 
 
 cwd = os.getcwd()
@@ -325,27 +398,40 @@ data = {"@ivy":     ["ivy-1.1.csv", "ivy-1.4.csv", "ivy-2.0.csv"],\
         "@lucene":  ["lucene-2.0.csv", "lucene-2.2.csv", "lucene-2.4.csv"],\
         "@poi":     ["poi-1.5.csv", "poi-2.0.csv", "poi-2.5.csv", "poi-3.0.csv"],\
         "@synapse": ["synapse-1.0.csv", "synapse-1.1.csv", "synapse-1.2.csv"],\
-        "@velocity":["velocity-1.4.csv", "velocity-1.5.csv", "velocity-1.6.csv"]}
+        "@velocity":["velocity-1.4.csv", "velocity-1.5.csv", "velocity-1.6.csv"], \
+        "@camel": ["camel-1.0.csv", "camel-1.2.csv", "camel-1.4.csv", "camel-1.6.csv"], \
+        "@jedit": ["jedit-3.2.csv", "jedit-4.0.csv", "jedit-4.1.csv", "jedit-4.2.csv", "jedit-4.3.csv"], \
+        "@log4j": ["log4j-1.0.csv", "log4j-1.1.csv", "log4j-1.2.csv"], \
+        "@xalan": ["xalan-2.4.csv", "xalan-2.5.csv", "xalan-2.6.csv", "xalan-2.7.csv"], \
+        "@xerces": ["xerces-1.2.csv", "xerces-1.3.csv", "xerces-1.4.csv"]
+        }
 
-
+all_data_filepath = os.path.join(data_path, "all_data.pkl")
+all_data = load_obj(all_data_filepath)
+# all_data = {}
 for name, files in data.iteritems():
-    print "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    print name
-    paths = [os.path.join(data_path, file_name) for file_name in files]
-    train_df = pd.concat([pd.read_csv(path) for path in paths[:-1]])
-    test_df = pd.read_csv(paths[-1])
-    train_df['bug'] = train_df['bug'].apply(lambda x: 0 if x == 0 else 1)
-    test_df['bug'] = test_df['bug'].apply(lambda x: 0 if x == 0 else 1)
-    print "training on: " + ', '.join(files[:-1])
-    print "testing on: " + files[-1]
+    if name not in all_data:
+        print "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+        print name
+        paths = [os.path.join(data_path, file_name) for file_name in files]
+        train_df = pd.concat([pd.read_csv(path) for path in paths[:-1]])
+        test_df = pd.read_csv(paths[-1])
+        train_df['bug'] = train_df['bug'].apply(lambda x: 0 if x == 0 else 1)
+        test_df['bug'] = test_df['bug'].apply(lambda x: 0 if x == 0 else 1)
+        print "training on: " + ', '.join(files[:-1])
+        print "testing on: " + files[-1]
+        all_data[name] = {}
 
-    for criteria in ["Dist2Heave", "Accuracy", "Gini", "InfoGain"]:
-        print "...................... " + criteria + " ......................"
-        fft = FFT()
-        fft.criteria = criteria
-        fft.title = name
-        fft.img_path = os.path.join(data_path, fft.criteria + "_" + name + ".png")
-        fft.train, fft.test = train_df, test_df
-        fft.run_all()
+        criterias = ["Dist2Heaven", "Accuracy"]  # "Gini", "InfoGain"]
+        for criteria in criterias:
+            print "...................... " + criteria + " ......................"
+            fft = FFT()
+            fft.criteria = criteria
+            fft.title = name
+            fft.img_path = os.path.join(data_path, fft.criteria + "_" + name + ".png")
+            fft.train, fft.test = train_df, test_df
+            fft.run_all()
+            all_data[name][criteria] = fft
+    plot_compare(name, all_data[name]["Accuracy"], all_data[name]["Dist2Heaven"])
 
-
+# save_obj(all_data, all_data_filepath)
