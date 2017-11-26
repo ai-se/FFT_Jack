@@ -25,9 +25,9 @@ COLORS = ["#800000", "#6B8E23", "#0000CD", "#FFFF00", "#8A2BE2",  "#00FF00", "#0
 MARKERS = ['v', 2, ',', 'h',  ">", 's', '*', 'p', '8']
 # training / testing split
 class FFT(object):
-    def __init__(self, df=None, max_level=4, goal=REC):
+    def __init__(self, df=None, max_level=1, goal=REC):
         cnt = 2 ** max_level
-        self.df = df
+        self.train, self.test = None, None
         self.title = ""
         self.img_path = ""
         #self.train, self.test = self.split_data(df)
@@ -41,12 +41,13 @@ class FFT(object):
         self.ignore = {"name", "version", 'name.1'}
         self.trees = [{}] * cnt
         self.tree_plotted = [False] * cnt
-        self.performance = [collections.defaultdict(dict) for _ in xrange(cnt)]
         self.selected = [{} for _ in range(cnt)]
         self.roc = [None] * self.tree_cnt
         self.tree_info = [collections.defaultdict(dict) for _ in xrange(cnt)]
         self.soa = None
         self.soa_name = ["SL", "NB", "EM", "SMO"]
+        self.performance_on_train = [collections.defaultdict(dict) for _ in xrange(cnt)]
+        self.performance_on_test = None
 
 
     "Get all possible tree structure"
@@ -89,7 +90,11 @@ class FFT(object):
         return tp, fp, tn, fn, pre, rec, spec, fpr, npv, acc, f1
 
 
-    "Given tree and level, get the node info"
+    "Give a cue, direction, threshold, result"
+    def get_decision(self):
+
+
+    "Given tree and level, get the node info on testing data"
     def get_node_info(self, t_id, i, reverse=False):
         # cue, direction, threshold, result
         c, d, t, r = self.selected[t_id][i]
@@ -101,7 +106,7 @@ class FFT(object):
 
         if "general" not in self.tree_info[t_id]:
             self.tree_info[t_id]["general"] = [0] * 5 # TP, FP, TN, FN, MCU
-        tp, fp, tn, fn = self.performance[t_id][i][(c, d, t, r)][:4]
+        tp, fp, tn, fn = self.performance_on_train[t_id][i][(c, d, t, r)][:4]
         if (r and not reverse) or (r == 0 and reverse):
             cues_used = 1.0 * (i + 1) * (tp + fp) / self.train.shape[0]
             self.tree_info[t_id]["general"] = [x + y for x, y in zip(self.tree_info[t_id]["general"], [tp, fp, 0, 0, cues_used])]
@@ -126,18 +131,24 @@ class FFT(object):
     def find_best_tree(self):
         print "#### Performance for all FFT generated. ####"
         print "-------------------------------------------------------"
-        print "ID\t MCU\t PRE\t REC\t SPEC\t NPV\t ACC\t F1"
+        print "ID\t PRE\t REC\t SPEC\t NPV\t ACC\t F1"
         goal = self.goal_chase
         selected = None
         for i in range(self.tree_cnt):
-            self.describe_tree(i)
-            tp, fp, tn, fn, mcu = self.tree_info[i]["general"]
+            # self.describe_tree(i)
+            # tp, fp, tn, fn, mcu = self.tree_info[i]["general"]
+            # metric = get_performance(tp, fp, tn, fn)
+
+            # tp, fp, tn, fn, mcu = self.tree_info[t_id]["general"]
+            # mcu = self.tree_info[i]["general"][-1]  # note that the mcu here is for training data.
+            tp, fp, tn, fn = self.performance_on_test[i][:4]    # the performance if from test data.
             metric = get_performance(tp, fp, tn, fn)
+
             self.roc[i] = [metric[-FPR], metric[-REC]]
             dist2heaven = self.roc[i][0]**2 + (1-self.roc[i][1])**2
             if not selected or dist2heaven < selected[1]:
                 selected = [i] + [dist2heaven]
-            print " \t ".join([str(x) for x in [i, round(mcu,1)] + metric])
+            print " \t ".join([str(x) for x in [i] + metric])
         print "-------------------------------------------------------"
         print "\nThe selected FFT id is :" + str(selected[0])
         print "The selected FFT constructed as the following tree: "
@@ -203,13 +214,15 @@ class FFT(object):
                   (self.tree_info[t_id][i]["metric"][0] if show_metrics else "")
         print self.tree_info[t_id][i]["description"][1] + \
               (self.tree_info[t_id][i]["metric"][1] if show_metrics else "")
-        tp, fp, tn, fn, mcu = self.tree_info[t_id]["general"]
 
+        # tp, fp, tn, fn, mcu = self.tree_info[t_id]["general"]
+        mcu = self.tree_info[t_id]["general"][-1]
+        tp, fp, tn, fn = self.performance_on_test[t_id][:4]
         print "\n#### Performance of the best FFT ####"
         print "======================================="
         print "\t".join([x.ljust(6, " ") for x in ["TP", "FP", "TN", "FN"]])
         print "\t".join([str(x).ljust(6, " ") for x in [tp, fp, tn, fn]])
-        print "\t".join([str(x).ljust(6, " ") for x in ["MCU", "PRE", "REC", "SPEC", "FPR", "NPV", "ACC", "F1"]])
+        print "\t".join([str(x).ljust(6, " ") for x in ["PRE", "REC", "SPEC", "FPR", "NPV", "ACC", "F1"]])
         print "\t".join([str(x).ljust(6, " ") for x in [round(mcu,1)] + get_performance(tp, fp, tn, fn)])
         print "\n#### Performance of the State-Of-The-Art Models ####"
         print "======================================="
@@ -237,7 +250,7 @@ class FFT(object):
             threshold = data[cue].median()
             for direction in "><":
                 metrics = self.get_metrics(data, cue, direction, threshold, decision)
-                self.performance[t_id][level][(cue, direction, threshold, decision)] = metrics
+                self.performance_on_train[t_id][level][(cue, direction, threshold, decision)] = metrics
                 goal = self.goal_chase
                 if self.criteria == "Accuracy":
                     score = -metrics[-ACC]
@@ -255,7 +268,7 @@ class FFT(object):
                     I, I0, I1 = (-x * np.log2(x) if x != 0 else 0 for x in (p, p0, p1))
                     I01 = p * I1 + (1-p) * I0
                     score = -(I - I01)     # the smaller the better.
-                # if not cur_selected or metrics[goal] > self.performance[t_id][level][cur_selected][goal]:
+                # if not cur_selected or metrics[goal] > self.performance_on_train[t_id][level][cur_selected][goal]:
                 if not cur_selected or score < cur_selected[1]:
                     cur_selected = [(cue, direction, threshold, decision), score]
         self.selected[t_id][level] = cur_selected[0]
@@ -271,6 +284,31 @@ class FFT(object):
             self.grow(self.train, i, 0)
 
 
+    "Get the performances on test data for all the FFTs."
+    def get_tree_performances(self):
+        if self.performance_on_test:
+            return
+        self.performance_on_test = [0] * len(self.structures)
+        for t_id in range(len(self.structures)):
+            TP, FP, TN, FN = 0, 0, 0, 0
+            self.performance_on_test[t_id] = []
+            level = self.tree_depth[t_id] + 1
+            data = self.test
+            for l_id in range(level):
+                if len(data) == 0:
+                    break
+                cue, dirc, thre, decision = self.selected[t_id][l_id]
+                tp, fp, tn, fn, pre, rec, spec, fpr, npv, acc, f1 = self.get_metrics(data, cue, dirc, thre, decision)
+                TP, FP, TN, FN = TP + tp, FP + fp, TN + tn, FN + fn
+                if dirc == ">":
+                    left = data.loc[data[cue] <= thre]
+                else:
+                    left = data.loc[data[cue] >= thre]
+                data = left
+            pre, rec, spec, fpr, npv, acc, f1 = get_performance(tp, fp, tn, fn)
+            self.performance_on_test[t_id] = [TP, FP, TN, FN, pre, rec, spec, fpr, npv, acc, f1]
+
+
     "Get performance of state of the art classifiers"
     def get_soa(self):
         train_data, train_label = self.train.iloc[:, 3:-1], self.train.iloc[:, -1]
@@ -280,6 +318,7 @@ class FFT(object):
         NB = GaussianNB()           # Naive Bayes\
         EM = GaussianMixture(random_state=SEED, n_components=2, covariance_type='spherical')  # Expectation Maximization
         SMO = LinearSVC(random_state=SEED)           # Support Vector Machines
+        self.soa_learners = [SL, NB, EM, SMO]
         m_SL = do_classification(train_data, test_data, train_label, test_label, SL)
         m_NB = do_classification(train_data, test_data, train_label, test_label, NB)
         m_EM = do_classification(train_data, test_data, train_label, test_label, EM, isGMM=True)
@@ -290,6 +329,7 @@ class FFT(object):
     def run_all(self):
         self.get_soa()
         self.build_trees()
+        self.get_tree_performances()
         self.plot_tree(show_metrics=True)
 
 
@@ -391,6 +431,12 @@ def plot_compare(name, fft1, fft2):
     plt.savefig(img_path)
 
 
+def plot_effort(fft):
+    data = fft.test
+    SL, NB, EM, SMO = fft.soa_learners
+    ours = None
+
+
 
 cwd = os.getcwd()
 data_path = os.path.join(cwd, "data")
@@ -406,9 +452,11 @@ data = {"@ivy":     ["ivy-1.1.csv", "ivy-1.4.csv", "ivy-2.0.csv"],\
         "@xerces": ["xerces-1.2.csv", "xerces-1.3.csv", "xerces-1.4.csv"]
         }
 
-all_data_filepath = os.path.join(data_path, "all_data.pkl")
-all_data = load_obj(all_data_filepath)
-# all_data = {}
+all_data_filepath = os.path.join(data_path, "dist2h_data.pkl")
+if os.path.exists(all_data_filepath):
+    all_data = load_obj(all_data_filepath)
+else:
+    all_data = {}
 for name, files in data.iteritems():
     if name not in all_data:
         print "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -422,7 +470,8 @@ for name, files in data.iteritems():
         print "testing on: " + files[-1]
         all_data[name] = {}
 
-        criterias = ["Dist2Heaven", "Accuracy"]  # "Gini", "InfoGain"]
+        # criterias = ["Dist2Heaven", "Accuracy", "Gini", "InfoGain"]
+        criterias = ["Dist2Heaven"] #, "Accuracy", "Gini", "InfoGain"]
         for criteria in criterias:
             print "...................... " + criteria + " ......................"
             fft = FFT()
@@ -432,6 +481,8 @@ for name, files in data.iteritems():
             fft.train, fft.test = train_df, test_df
             fft.run_all()
             all_data[name][criteria] = fft
-    plot_compare(name, all_data[name]["Accuracy"], all_data[name]["Dist2Heaven"])
+    # plot_compare(name, all_data[name]["Accuracy"], all_data[name]["Dist2Heaven"])
+    # plot_effort(name, all_data[name]["Dist2Heaven"])
 
-# save_obj(all_data, all_data_filepath)
+if not os.path.exists(all_data_filepath):
+    save_obj(all_data, all_data_filepath)
