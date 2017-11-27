@@ -68,3 +68,19 @@ def get_score(criteria, metrics):   # The smaller the better
         I01 = p * I1 + (1 - p) * I0
         score = -(I - I01)  # the smaller the better.
     return round(score, 3)
+
+def subtotal(x):
+    xx = [0]
+    for i, t in enumerate(x):
+        xx += [xx[-1] + t]
+    return xx[1:]
+
+def get_recall(predict, true):
+    total_true = float(len([i for i in true if i == 1]))
+    hit = 0.0
+    recall = []
+    for i in xrange(len(true)):
+        if true[i] == 1 and predict[i] == 1:
+            hit += 1
+        recall += [hit / total_true]
+    return recall

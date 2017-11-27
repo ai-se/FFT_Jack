@@ -1,13 +1,14 @@
 import matplotlib.pyplot as plt
+from helpers import subtotal, get_recall
 
 PRE, REC, SPEC, FPR, NPV, ACC, F1 = 7, 6, 5, 4, 3, 2, 1
 COLORS = ["#800000", "#6B8E23", "#0000CD", "#FFFF00", "#8A2BE2",  "#00FF00", "#00FFFF", "#FF00FF"]
 MARKERS = ['v', 2, ',', 'h',  ">", 's', '*', 'p', '8']
 
 "Plot ROC"
-def plot(fft, soa, img_path="~/tmp", type="ROC"):
+def plotROC(fft, soa, img_path="~/tmp"):
     fig, ax = plt.subplots()
-    ax.set_title('FFT splits based on: ' + fft.criteria + '  |  Data: ' + fft.data_name)
+    ax.set_title('ROC: FFT splits on ' + fft.criteria + '  |  Data ' + fft.data_name)
     ax.set_xlabel("False Alarm Rates")
     ax.set_ylabel("Recall")
     ax.set_xlim(-0.05, 1.05)
@@ -24,10 +25,7 @@ def plot(fft, soa, img_path="~/tmp", type="ROC"):
     s_id = fft.best
     for i in range(fft.tree_cnt):
         metric = fft.performance_on_test[i]
-        if type == "ROC":
-            roc[i] = [metric[-FPR], metric[-REC]]
-        else: #LOC
-            x, y = 0, 0
+        roc[i] = [metric[-FPR], metric[-REC]]
         if i == s_id:
             continue
         ax.scatter(roc[i][0], roc[i][1], c=COLORS[k], s=100)
@@ -50,7 +48,52 @@ def plot(fft, soa, img_path="~/tmp", type="ROC"):
     legend.get_frame().set_facecolor('#CEE5DD')
     # plt.show()
     plt.savefig(img_path)
-    return s_id
+
+
+"Plot ROC"
+def plotLOC(data, learners, names, img_path="~/tmp"):
+    fig, ax = plt.subplots()
+    ax.set_title('LOC: Data ' + learners[0].data_name)
+    ax.set_xlabel("%code churn")
+    ax.set_ylabel("%bug detection")
+    ax.set_xlim(-0.05, 1.05)
+    ax.set_ylim(-0.05, 1.05)
+    # plot diagonal
+    x, y = [0.001 * i for i in range(1000)], [0.001 * i for i in range(1000)]
+    ax.scatter(x, y, s=4)
+
+    data.sort(columns=["bug", "loc"], ascending=[0, 1], inplace=True)
+    x_sum = float(sum(data['loc']))
+    x = data['loc'].apply(lambda t: t / x_sum)
+    xx = subtotal(x)
+
+    # plot optimal
+    k = len(learners)
+    yy = get_recall(data['bug'], data['bug'])
+    ax.plot(xx, yy, markersize=10, color=COLORS[-k], marker=MARKERS[-k], label="Optimal")
+
+    # plot worst
+    xx = subtotal(x[::-1])
+    yy = get_recall(data['bug'][::-1], data['bug'])
+    ax.plot(xx, yy, markersize=10, color=COLORS[-k-1], marker=MARKERS[-k-1], label="Worst")
+
+    # plot state of the art performance
+    for i, clf in enumerate(learners):
+        if names[i].startswith("FFT"):
+            y = clf.predict(data)
+        else:
+            y = clf.predict(data.iloc[:, :-2])
+        # y = [t / y_sum for t in y]
+        # yy = subtotal(y)
+        yy = get_recall(y, data['bug'])
+        ax.plot(xx, yy, markersize=10, color=COLORS[-i], marker=MARKERS[-i], label=names[i])
+
+    legend = ax.legend(loc='lower right', shadow=True, fontsize='small')
+    # Put a nicer background color on the legend.
+    legend.get_frame().set_facecolor('#CEE5DD')
+    # plt.show()
+    plt.savefig(img_path)
+
 
 
 def plot_compare(fft1, fft2, img_path="~/tmp"):
@@ -91,3 +134,5 @@ def plot_compare(fft1, fft2, img_path="~/tmp"):
     legend.get_frame().set_facecolor('#CEE5DD')
     # plt.show()
     plt.savefig(img_path)
+
+

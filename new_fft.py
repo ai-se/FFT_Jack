@@ -1,5 +1,5 @@
 import collections
-
+import pandas as pd
 from helpers import get_performance, get_score
 
 PRE, REC, SPEC, FPR, NPV, ACC, F1 = 7, 6, 5, 4, 3, 2, 1
@@ -27,6 +27,7 @@ class FFT(object):
 
         self.selected = [{} for _ in range(cnt)]
         self.tree_scores = [None] * cnt
+        self.dist2heavens = [None] * cnt
         self.node_descriptions = [None] * cnt
         self.performance_on_train = [collections.defaultdict(dict) for _ in xrange(cnt)]
         self.performance_on_test = [None] * cnt
@@ -58,6 +59,7 @@ class FFT(object):
             all_metrics = self.performance_on_test[i]
             score = get_score(self.criteria, all_metrics[:4])
             self.tree_scores[i] = score
+            self.dist2heavens[i] = get_score("Dist2Heaven", all_metrics[:4])
             if score < best[-1]:
                 best = [i, score]
             print "\t" + "\t".join(
@@ -129,6 +131,28 @@ class FFT(object):
 
         pre, rec, spec, fpr, npv, acc, f1 = get_performance([TP, FP, TN, FN])
         self.performance_on_test[t_id] = [TP, FP, TN, FN, pre, rec, spec, fpr, npv, acc, f1]
+
+
+    def predict(self, data):
+        # predictions = pd.Series([None] * len(data))
+        original = data
+        original['prediction'] = pd.Series([None] * len(data))
+        depth = self.tree_depths[self.best]
+        for level in range(depth + 1):
+            cue, direction, threshold, decision = self.selected[self.best][level]
+            undecided, metrics = self.eval_decision(data, cue, direction, threshold, decision)
+            decided_idx = [i for i in data.index if i not in undecided.index]
+            original['prediction'][decided_idx] = decision
+            # original.iloc[data.index, 'prediction'] = decision
+            data = undecided
+        # original.iloc[data.index, 'prediction'] = 1 if decision == 0 else 0
+        original['prediction'][data.index] = 1 if decision == 0 else 0
+        if None in original['prediction']:
+            print "ERROR!"
+        return original['prediction']
+
+
+
 
     "Grow the t_id_th tree for the level with the given data"
 

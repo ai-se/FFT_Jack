@@ -44,13 +44,12 @@ class SOA(object):
         self.performances = []
         self.dist2heavens = []
 
-
     "Get performance of state of the art classifiers"
 
     def get_performances(self):
         # Note that the split here is DATA SENSITIVE
-        train_data, train_label = self.train.iloc[:, 3:-1], self.train.iloc[:, -1]
-        test_data, test_label = self.test.iloc[:, 3:-1], self.test.iloc[:, -1]
+        train_data, train_label = self.train.iloc[:, :-1], self.train.iloc[:, -1]
+        test_data, test_label = self.test.iloc[:, :-1], self.test.iloc[:, -1]
         for i, clf in enumerate(self.learners):
             performance, dist2heaven = do_classification(train_data, test_data, train_label, test_label, clf, self.names[i] == "EM")
             self.performances += [performance]

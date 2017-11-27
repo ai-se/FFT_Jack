@@ -4,7 +4,7 @@ import pandas as pd
 from helpers import load_obj, save_obj
 from new_fft import FFT
 from SOA import SOA
-from plot import plot, plot_compare
+from plot import plotROC, plotLOC, plot_compare
 
 
 cwd = os.getcwd()
@@ -20,8 +20,11 @@ data = {"@ivy":     ["ivy-1.1.csv", "ivy-1.4.csv", "ivy-2.0.csv"],\
         "@xalan": ["xalan-2.4.csv", "xalan-2.5.csv", "xalan-2.6.csv", "xalan-2.7.csv"], \
         "@xerces": ["xerces-1.2.csv", "xerces-1.3.csv", "xerces-1.4.csv"]
         }
+criterias = ["Accuracy", "Dist2Heaven", "Gini", "InfoGain"]
 
 all_data_filepath = os.path.join(data_path, "NewData.pkl")
+
+
 if os.path.exists(all_data_filepath):
     all_data = load_obj(all_data_filepath)
 else:
@@ -34,6 +37,7 @@ for name, files in data.iteritems():
         paths = [os.path.join(data_path, file_name) for file_name in files]
         train_df = pd.concat([pd.read_csv(path) for path in paths[:-1]])
         test_df = pd.read_csv(paths[-1])
+        train_df, test_df = train_df.iloc[:, 3:], test_df.iloc[:, 3:]
         train_df['bug'] = train_df['bug'].apply(lambda x: 0 if x == 0 else 1)
         test_df['bug'] = test_df['bug'].apply(lambda x: 0 if x == 0 else 1)
         print "training on: " + ', '.join(files[:-1])
@@ -43,8 +47,6 @@ for name, files in data.iteritems():
         soa.get_performances()
         all_data[name]["SOA"] = soa
         all_data[name]["FFT"] = []
-        criterias = ["Accuracy", "Dist2Heaven", "Gini", "InfoGain"]
-        # criterias = ["Dist2Heaven"] #, "Accuracy", "Gini", "InfoGain"]
         for criteria in criterias:
             print "  ...................... " + criteria + " ......................"
             fft = FFT(4)
@@ -55,11 +57,17 @@ for name, files in data.iteritems():
             fft.eval_trees()
             fft.find_best_tree()
             soa.print_soa()
-            img_path0 = os.path.join(data_path, fft.criteria + "_" + name + ".png")
-            plot(fft, soa, img_path=img_path0, type="ROC")
+            img_path0 = os.path.join(data_path, 'ROC_' + fft.criteria + "_" + name + ".png")
+            plotROC(fft, soa, img_path=img_path0)
             all_data[name]["FFT"] += [fft]
-    img_path1 = os.path.join(data_path, "FFT_Compare_" + name + ".png")
-    plot_compare(all_data[name]["FFT"][0], all_data[name]["FFT"][1], img_path=img_path1)
+
+
+    img_path1 = os.path.join(data_path, 'LOC_' + name + ".png")
+    plotLOC(all_data[name]["FFT"][1].test, [all_data[name]["FFT"][1]] + all_data[name]["SOA"].learners,\
+                    ["FFT"] + all_data[name]["SOA"].names,  img_path=img_path1)
+    img_path2 = os.path.join(data_path, "FFT_Compare_" + name + ".png")
+    plot_compare(all_data[name]["FFT"][0], all_data[name]["FFT"][1], img_path=img_path2)
+
     # plot_compare(name, all_data[name]["Accuracy"], all_data[name]["Dist2Heaven"])
     # plot_effort(name, all_data[name]["Dist2Heaven"])
 
