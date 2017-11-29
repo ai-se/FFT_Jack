@@ -69,12 +69,14 @@ def plotLOC(data, learners, names, img_path="~/tmp"):
 
     # plot optimal
     k = len(learners)
-    yy = get_recall(data['bug'], data['bug'])
+    y = data['bug'].values
+    yy = get_recall(y, y)
     ax.plot(xx, yy, markersize=10, color=COLORS[-k], marker=MARKERS[-k], label="Optimal")
 
     # plot worst
     xx = subtotal(x[::-1])
-    yy = get_recall(data['bug'][::-1], data['bug'])
+    y = data['bug'][::-1].values
+    yy = get_recall(y, y)
     ax.plot(xx, yy, markersize=10, color=COLORS[-k-1], marker=MARKERS[-k-1], label="Worst")
 
     # plot state of the art performance
@@ -82,10 +84,12 @@ def plotLOC(data, learners, names, img_path="~/tmp"):
         if names[i].startswith("FFT"):
             y = clf.predict(data)
         else:
-            y = clf.predict(data.iloc[:, :-2])
-        # y = [t / y_sum for t in y]
-        # yy = subtotal(y)
-        yy = get_recall(y, data['bug'])
+            y = clf.predict(data.iloc[:, :-2]).tolist()
+        data['prediction'] = y
+        data.sort(columns=["prediction", "loc"], ascending=[0, 1], inplace=True)
+        x = data['loc'].apply(lambda t: t / x_sum)
+        xx = subtotal(x)
+        yy = get_recall(y, data['bug'].values)
         ax.plot(xx, yy, markersize=10, color=COLORS[-i], marker=MARKERS[-i], label=names[i])
 
     legend = ax.legend(loc='lower right', shadow=True, fontsize='small')

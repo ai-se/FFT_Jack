@@ -149,7 +149,7 @@ class FFT(object):
         original['prediction'][data.index] = 1 if decision == 0 else 0
         if None in original['prediction']:
             print "ERROR!"
-        return original['prediction']
+        return original['prediction'].values
 
 
 

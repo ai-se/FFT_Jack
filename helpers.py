@@ -48,7 +48,7 @@ def get_performance(metrics):
 "Given the general metrics, return the score got by the specific criteria."
 
 def get_score(criteria, metrics):   # The smaller the better
-    tp, fp, tn, fn = metrics
+    tp, fp, tn, fn, loc, bug = metrics
     pre, rec, spec, fpr, npv, acc, f1 = get_performance([tp, fp, tn, fn])
     all_metrics = [tp, fp, tn, fn, pre, rec, spec, fpr, npv, acc, f1]
     if criteria == "Accuracy":
@@ -84,3 +84,5 @@ def get_recall(predict, true):
             hit += 1
         recall += [hit / total_true]
     return recall
+
+# print get_recall([1,0,0,0], [1,1,0,1])
