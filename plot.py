@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-from helpers import subtotal, get_recall
+from helpers import subtotal, get_recall, auc
 
 PRE, REC, SPEC, FPR, NPV, ACC, F1 = 7, 6, 5, 4, 3, 2, 1
 COLORS = ["#800000", "#6B8E23", "#0000CD", "#FFFF00", "#8A2BE2",  "#00FF00", "#00FFFF", "#FF00FF"]
@@ -20,7 +20,7 @@ def plotROC(fft, soa, img_path="~/tmp"):
     # plot fft peformances
     fft.roc = [None] * fft.tree_cnt
     roc = fft.roc
-    tmp = {"Accuracy": 0, "Dist2Heaven": 1, "Gini": 2, "InfoGain": 3}
+    tmp = {"Accuracy": 0, "Dist2Heaven": 1, "Gini": 2, "LOC_AUC": 3}
     k = tmp[fft.criteria]
     s_id = fft.best
     for i in range(fft.tree_cnt):
@@ -67,36 +67,50 @@ def plotLOC(data, learners, names, img_path="~/tmp"):
     x = data['loc'].apply(lambda t: t / x_sum)
     xx = subtotal(x)
 
+    markers = ['*', '.', 'o', '+', 'x', '_', '|']
     # plot optimal
     k = len(learners)
-    y = data['bug'].values
-    yy = get_recall(y, y)
-    ax.plot(xx, yy, markersize=10, color=COLORS[-k], marker=MARKERS[-k], label="Optimal")
+    yy = get_recall(data['bug'].values)
+    ax.plot(xx, yy, markersize=10, color=COLORS[-k], marker=markers[-k], label="Optimal")
+    xxx = [i for i in xx if i <= 0.2]
+    yyy = yy[:len(xxx)]
+    s_opt = round(auc(xxx, yyy), 3)
 
     # plot worst
     xx = subtotal(x[::-1])
-    y = data['bug'][::-1].values
-    yy = get_recall(y, y)
-    ax.plot(xx, yy, markersize=10, color=COLORS[-k-1], marker=MARKERS[-k-1], label="Worst")
+    yy = get_recall(data['bug'][::-1].values)
+    ax.plot(xx, yy, markersize=10, color=COLORS[-k-1], marker=markers[-k-1], label="Worst")
+    xxx = [i for i in xx if i <= 0.2]
+    yyy = yy[:len(xxx)]
+    s_wst = round(auc(xxx, yyy), 3)
 
-    # plot state of the art performance
+    tmp = {}
+    p_opt = [None] * len(learners)
     for i, clf in enumerate(learners):
         if names[i].startswith("FFT"):
             y = clf.predict(data)
+            tmp.update({'data': clf.data_name})
         else:
             y = clf.predict(data.iloc[:, :-2]).tolist()
         data['prediction'] = y
         data.sort(columns=["prediction", "loc"], ascending=[0, 1], inplace=True)
         x = data['loc'].apply(lambda t: t / x_sum)
         xx = subtotal(x)
-        yy = get_recall(y, data['bug'].values)
-        ax.plot(xx, yy, markersize=10, color=COLORS[-i], marker=MARKERS[-i], label=names[i])
+        yy = get_recall(data['bug'].values)
+        ax.plot(xx, yy, markersize=10, color=COLORS[-i], marker=markers[-i], label=names[i])
+        xxx = [k for k in xx if k <= 0.2]
+        yyy = yy[:len(xxx)]
+        s_m = round(auc(xxx, yyy), 3)
+        p_opt[i] = (s_m - s_wst) / (s_opt - s_wst)
+        tmp.update({names[i]: p_opt[i]})
 
     legend = ax.legend(loc='lower right', shadow=True, fontsize='small')
     # Put a nicer background color on the legend.
     legend.get_frame().set_facecolor('#CEE5DD')
     # plt.show()
     plt.savefig(img_path)
+    return tmp
+
 
 
 

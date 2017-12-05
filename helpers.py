@@ -1,6 +1,7 @@
 """Helper functions."""
 import pickle
 import numpy as np
+from sklearn.metrics import auc
 
 PRE, REC, SPEC, FPR, NPV, ACC, F1 = 7, 6, 5, 4, 3, 2, 1
 
@@ -48,7 +49,7 @@ def get_performance(metrics):
 "Given the general metrics, return the score got by the specific criteria."
 
 def get_score(criteria, metrics):   # The smaller the better
-    tp, fp, tn, fn, loc, bug = metrics
+    tp, fp, tn, fn = metrics
     pre, rec, spec, fpr, npv, acc, f1 = get_performance([tp, fp, tn, fn])
     all_metrics = [tp, fp, tn, fn, pre, rec, spec, fpr, npv, acc, f1]
     if criteria == "Accuracy":
@@ -75,14 +76,29 @@ def subtotal(x):
         xx += [xx[-1] + t]
     return xx[1:]
 
-def get_recall(predict, true):
+def get_recall(true):
     total_true = float(len([i for i in true if i == 1]))
     hit = 0.0
     recall = []
     for i in xrange(len(true)):
-        if true[i] == 1 and predict[i] == 1:
+        if true[i] == 1:
             hit += 1
-        recall += [hit / total_true]
+        recall += [hit / total_true if total_true else 0.0]
     return recall
 
-# print get_recall([1,0,0,0], [1,1,0,1])
+def get_auc(data):
+    "The smaller the better"
+    if len(data) == 1:
+        return 0
+    x_sum = float(sum(data['loc']))
+    x = data['loc'].apply(lambda t: t / x_sum)
+    xx = subtotal(x)
+    yy = get_recall(data['bug'].values)
+    try:
+        ret = -round(auc(xx, yy), 3)
+    except:
+        print "?"
+        ret = 0
+    return ret
+
+print get_recall([0,0,0])

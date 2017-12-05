@@ -1,6 +1,7 @@
 import collections
 import pandas as pd
-from helpers import get_performance, get_score
+from helpers import get_performance, get_score, subtotal, get_recall, get_auc
+from sklearn.metrics import auc
 
 PRE, REC, SPEC, FPR, NPV, ACC, F1 = 7, 6, 5, 4, 3, 2, 1
 MATRIX = "\t".join(["\tTP", "FP", "TN", "FN"])
@@ -31,6 +32,8 @@ class FFT(object):
         self.node_descriptions = [None] * cnt
         self.performance_on_train = [collections.defaultdict(dict) for _ in xrange(cnt)]
         self.performance_on_test = [None] * cnt
+        self.predictions = [None] * cnt
+        self.loc_aucs = [None] * cnt
 
     "Build all possible tress."
 
@@ -39,11 +42,17 @@ class FFT(object):
         for i in range(self.tree_cnt):
             self.grow(self.train, i, 0, [0, 0, 0, 0])
 
-    "Evaluate all tress built."
+    "Evaluate all tress built on TEST data."
 
     def eval_trees(self):
         for i in range(self.tree_cnt):
             self.eval_tree(i)
+            data = self.test
+            predictions = self.predict(data, i)
+            pos = data[data['prediction'] == 1].sort(columns=["loc"], ascending=[1])
+            neg = data[data['prediction'] == 0].sort(columns=["loc"], ascending=[1])
+            sorted_data = pd.concat([pos, neg])
+            self.loc_aucs[i] = get_auc(sorted_data)
 
     "Find the best tree based on the score."
 
@@ -57,7 +66,10 @@ class FFT(object):
         best = [-1, float('inf')]
         for i in range(self.tree_cnt):
             all_metrics = self.performance_on_test[i]
-            score = get_score(self.criteria, all_metrics[:4])
+            if self.criteria == "LOC_AUC":
+                score = self.loc_aucs[i]
+            else:
+                score = get_score(self.criteria, all_metrics[:4])
             self.tree_scores[i] = score
             self.dist2heavens[i] = get_score("Dist2Heaven", all_metrics[:4])
             if score < best[-1]:
@@ -98,16 +110,18 @@ class FFT(object):
         else:
             pos, neg = neg, pos
             undecided = pos
-
-        tp = len(pos.loc[pos[self.target] == 1])
-        fp = len(pos.loc[pos[self.target] == 0])
-        tn = len(neg.loc[neg[self.target] == 0])
-        fn = len(neg.loc[neg[self.target] == 1])
+        # get auc for loc.
+        sorted_data = pd.concat([df.sort(columns=["loc"], ascending=[1]) for df in [pos, neg]])
+        loc_auc = get_auc(sorted_data)
+        tp = pos.loc[pos[self.target] == 1]
+        fp = pos.loc[pos[self.target] == 0]
+        tn = neg.loc[neg[self.target] == 0]
+        fn = neg.loc[neg[self.target] == 1]
         # pre, rec, spec, fpr, npv, acc, f1 = get_performance([tp, fp, tn, fn])
         # return undecided, [tp, fp, tn, fn, pre, rec, spec, fpr, npv, acc, f1]
-        return undecided, [tp, fp, tn, fn]
+        return undecided, map(len, [tp, fp, tn, fn]), loc_auc
 
-    "Evaluate the performance of the given tree on the test data."
+    "Evaluate the performance of the given tree on the TEST data."
 
     def eval_tree(self, t_id):
         if self.performance_on_test[t_id]:
@@ -118,7 +132,7 @@ class FFT(object):
         data = self.test
         for level in range(depth + 1):
             cue, direction, threshold, decision = self.selected[t_id][level]
-            undecided, metrics = self.eval_decision(data, cue, direction, threshold, decision)
+            undecided, metrics, loc_auc = self.eval_decision(data, cue, direction, threshold, decision)
             tp, fp, tn, fn = self.update_metrics(level, depth, decision, metrics)
             description = self.describe_decision(t_id, level, metrics)
             self.node_descriptions[t_id][level] += [description]
@@ -133,25 +147,26 @@ class FFT(object):
         self.performance_on_test[t_id] = [TP, FP, TN, FN, pre, rec, spec, fpr, npv, acc, f1]
 
 
-    def predict(self, data):
+    def predict(self, data, t_id=-1):
         # predictions = pd.Series([None] * len(data))
+        if t_id == -1:
+            t_id = self.best
         original = data
         original['prediction'] = pd.Series([None] * len(data))
-        depth = self.tree_depths[self.best]
+        depth = self.tree_depths[t_id]
         for level in range(depth + 1):
-            cue, direction, threshold, decision = self.selected[self.best][level]
-            undecided, metrics = self.eval_decision(data, cue, direction, threshold, decision)
+            cue, direction, threshold, decision = self.selected[t_id][level]
+            undecided, metrics, loc_auc = self.eval_decision(data, cue, direction, threshold, decision)
             decided_idx = [i for i in data.index if i not in undecided.index]
             original['prediction'][decided_idx] = decision
             # original.iloc[data.index, 'prediction'] = decision
             data = undecided
         # original.iloc[data.index, 'prediction'] = 1 if decision == 0 else 0
-        original['prediction'][data.index] = 1 if decision == 0 else 0
+        original['prediction'][undecided.index] = 1 if decision == 0 else 0
         if None in original['prediction']:
             print "ERROR!"
-        return original['prediction'].values
-
-
+        self.predictions[t_id] = original['prediction'].values
+        return self.predictions[t_id]
 
 
     "Grow the t_id_th tree for the level with the given data"
@@ -163,7 +178,7 @@ class FFT(object):
         :param level: level id
         :return: None
         """
-        if level > self.max_depth:
+        if level >= self.max_depth:
             return
         if len(data) == 0:
             print "?????????????????????? Early Ends ???????????????????????"
@@ -179,9 +194,12 @@ class FFT(object):
                     continue
                 threshold = data[cue].median()
                 for direction in "><":
-                    undecided, metrics = self.eval_decision(data, cue, direction, threshold, decision)
+                    undecided, metrics, loc_auc = self.eval_decision(data, cue, direction, threshold, decision)
                     tp, fp, tn, fn = self.update_metrics(level, self.max_depth, decision, metrics)
-                    score = get_score(self.criteria, [TP + tp, FP + fp, TN + tn, FN + fn])
+                    if self.criteria == "LOC_AUC":
+                        score = loc_auc
+                    else:
+                        score = get_score(self.criteria, [TP + tp, FP + fp, TN + tn, FN + fn])
                     # score = get_score(self.criteria, metrics)
                     # if not cur_selected or metrics[goal] > self.performance_on_train[t_id][level][cur_selected][goal]:
                     if not cur_selected or score < cur_selected['score']:
@@ -228,8 +246,8 @@ class FFT(object):
         if self.max_depth < 0:
             return []
         ans = []
-        dfs([], self.max_depth + 1)
-        return ans[:self.tree_cnt]
+        dfs([], self.max_depth)
+        return ans
 
     "Update the metrics(TP, FP, TN, FN) based on the decision."
 

@@ -20,7 +20,7 @@ data = {"@ivy":     ["ivy-1.1.csv", "ivy-1.4.csv", "ivy-2.0.csv"],\
         "@xalan": ["xalan-2.4.csv", "xalan-2.5.csv", "xalan-2.6.csv", "xalan-2.7.csv"], \
         "@xerces": ["xerces-1.2.csv", "xerces-1.3.csv", "xerces-1.4.csv"]
         }
-criterias = ["Accuracy", "Dist2Heaven", "Gini", "InfoGain"]
+criterias = ["Accuracy", "Dist2Heaven", "LOC_AUC"] # "Gini", "InfoGain"]
 
 all_data_filepath = os.path.join(data_path, "NewData.pkl")
 
@@ -30,6 +30,7 @@ if os.path.exists(all_data_filepath):
 else:
     all_data = {}
 
+p_opt_stat = []
 for name, files in data.iteritems():
     if name not in all_data:
         print "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -61,15 +62,20 @@ for name, files in data.iteritems():
             plotROC(fft, soa, img_path=img_path0)
             all_data[name]["FFT"] += [fft]
 
-
     img_path1 = os.path.join(data_path, 'LOC_' + name + ".png")
-    plotLOC(all_data[name]["FFT"][1].test, [all_data[name]["FFT"][1]] + all_data[name]["SOA"].learners,\
+    tmp = plotLOC(all_data[name]["FFT"][-1].test, [all_data[name]["FFT"][-1]] + all_data[name]["SOA"].learners,\
                     ["FFT"] + all_data[name]["SOA"].names,  img_path=img_path1)
+    p_opt_stat += [tmp]
     img_path2 = os.path.join(data_path, "FFT_Compare_" + name + ".png")
     plot_compare(all_data[name]["FFT"][0], all_data[name]["FFT"][1], img_path=img_path2)
 
     # plot_compare(name, all_data[name]["Accuracy"], all_data[name]["Dist2Heaven"])
     # plot_effort(name, all_data[name]["Dist2Heaven"])
+
+p_opt_df = pd.DataFrame(p_opt_stat)
+p_opt_path = os.path.join(data_path, "_p_opt_stats.csv")
+p_opt_df.to_csv(p_opt_path)
+print 'P_opt statistics saved in: ' + p_opt_path
 
 if not os.path.exists(all_data_filepath):
     save_obj(all_data, all_data_filepath)

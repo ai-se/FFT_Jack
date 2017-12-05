@@ -15,7 +15,8 @@ data = {"@ivy":     ["ivy-1.1.csv", "ivy-1.4.csv", "ivy-2.0.csv"],\
         "@xalan": ["xalan-2.4.csv", "xalan-2.5.csv", "xalan-2.6.csv", "xalan-2.7.csv"], \
         "@xerces": ["xerces-1.2.csv", "xerces-1.3.csv", "xerces-1.4.csv"]
         }
-criterias = ["Accuracy", "Dist2Heaven", "Gini", "InfoGain"]
+# criterias = ["Accuracy", "Dist2Heaven", "Gini", "InfoGain"]
+criterias = ["Accuracy", "Dist2Heaven", "LOC_AUC"] # "Gini", "InfoGain"]
 soa_names = ['SL', 'NB', 'EM', 'SMO']
 
 all_data_filepath = os.path.join(data_path, "NewData.pkl")
@@ -28,7 +29,7 @@ else:
 
 heaven_csv = []
 fft_stat = []
-for i in range(4):
+for i in range(len(criterias)):
     tmp = {"Learners": "FFT_" + criterias[i]}
     stat = {"Learners": "FFT_" + criterias[i]}
     for name in data.iterkeys():
@@ -38,7 +39,7 @@ for i in range(4):
     heaven_csv.append(tmp)
     fft_stat.append(stat)
 
-for i in range(4):
+for i in range(len(soa_names)):
     soa_name = soa_names[i]
     tmp = {"Learners": soa_name}
     for name in data.iterkeys():
@@ -66,10 +67,9 @@ for i in range(4):
 
 heaven_df = pd.DataFrame(heaven_csv)
 fft_stat_df = pd.DataFrame(fft_stat)
-print heaven_df.head(20)
-print fft_stat_df.head(20)
 heaven_df_path = os.path.join(data_path, "_dist2heavens.csv")
 fft_stat_path = os.path.join(data_path, "_fft_stats.csv")
 heaven_df.to_csv(heaven_df_path)
 fft_stat_df.to_csv(fft_stat_path)
 
+print "Statistics save in: " + heaven_df_path
