@@ -54,7 +54,7 @@ def plotROC(fft, soa, img_path="~/tmp"):
 def plotLOC(data, learners, names, img_path="~/tmp"):
     fig, ax = plt.subplots()
     ax.set_title('LOC: Data ' + learners[0].data_name)
-    ax.set_xlabel("%code churn")
+    ax.set_xlabel("%code")
     ax.set_ylabel("%bug detection")
     ax.set_xlim(-0.05, 1.05)
     ax.set_ylim(-0.05, 1.05)
@@ -69,7 +69,7 @@ def plotLOC(data, learners, names, img_path="~/tmp"):
 
     markers = ['*', '.', 'o', '+', 'x', '_', '|']
     # plot optimal
-    k = len(learners)
+    k = 5
     yy = get_recall(data['bug'].values)
     ax.plot(xx, yy, markersize=10, color=COLORS[-k], marker=markers[-k], label="Optimal")
     xxx = [i for i in xx if i <= 0.2]

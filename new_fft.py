@@ -17,7 +17,7 @@ class FFT(object):
         self.best = -1
 
         self.target = "bug"
-        self.ignore = {"name", "version", 'name.1'}
+        self.ignore = {"name", "version", 'name.1', 'prediction'}
         self.criteria = "Dist2Heaven"
 
         self.data_name = ''
@@ -39,15 +39,18 @@ class FFT(object):
 
     def build_trees(self):
         self.structures = self.get_all_structure()
+        data = self.train
         for i in range(self.tree_cnt):
-            self.grow(self.train, i, 0, [0, 0, 0, 0])
+            self.grow(data, i, 0, [0, 0, 0, 0])
 
     "Evaluate all tress built on TEST data."
 
     def eval_trees(self):
         for i in range(self.tree_cnt):
+            # Get performance on TEST data.
             self.eval_tree(i)
-            data = self.test
+            # data = self.test
+            data = self.train
             predictions = self.predict(data, i)
             pos = data[data['prediction'] == 1].sort(columns=["loc"], ascending=[1])
             neg = data[data['prediction'] == 0].sort(columns=["loc"], ascending=[1])
@@ -61,11 +64,12 @@ class FFT(object):
             return
         if not self.performance_on_test or not self.performance_on_test[0]:
             self.eval_trees()
-        print "\t----- PERFORMANCES FOR ALL FFTs -----"
+        print "\t----- PERFORMANCES FOR ALL FFTs on Training Data -----"
         print PERFORMANCE + " \t" + self.criteria
         best = [-1, float('inf')]
         for i in range(self.tree_cnt):
-            all_metrics = self.performance_on_test[i]
+            # all_metrics = self.performance_on_test[i]
+            all_metrics = self.performance_on_train[i][self.tree_depths[i]]
             if self.criteria == "LOC_AUC":
                 score = self.loc_aucs[i]
             else:
@@ -77,7 +81,7 @@ class FFT(object):
             print "\t" + "\t".join(
                 ["FFT(" + str(i) + ")"] + \
                 [str(x).ljust(5, "0") for x in all_metrics[4:] + [score]])
-        print "\tThe best tree found is: FFT(" + str(best[0]) + ")"
+        print "\tThe best tree found on training data is: FFT(" + str(best[0]) + ")"
         self.best = best[0]
         self.print_tree(best[0])
 
@@ -101,10 +105,13 @@ class FFT(object):
     "Given how the decision is made, get the performance for this decision."
 
     def eval_decision(self, data, cue, direction, threshold, decision):
-        if direction == ">":
-            pos, neg = data.loc[data[cue] > threshold], data.loc[data[cue] <= threshold]
-        else:
-            pos, neg = data.loc[data[cue] < threshold], data.loc[data[cue] >= threshold]
+        try:
+            if direction == ">":
+                pos, neg = data.loc[data[cue] > threshold], data.loc[data[cue] <= threshold]
+            else:
+                pos, neg = data.loc[data[cue] < threshold], data.loc[data[cue] >= threshold]
+        except:
+            return 1, 2, 3
         if decision == 1:
             undecided = neg
         else:

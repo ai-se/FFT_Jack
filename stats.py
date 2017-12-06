@@ -19,7 +19,7 @@ data = {"@ivy":     ["ivy-1.1.csv", "ivy-1.4.csv", "ivy-2.0.csv"],\
 criterias = ["Accuracy", "Dist2Heaven", "LOC_AUC"] # "Gini", "InfoGain"]
 soa_names = ['SL', 'NB', 'EM', 'SMO']
 
-all_data_filepath = os.path.join(data_path, "NewData.pkl")
+all_data_filepath = os.path.join(data_path, "NewData_16.pkl")
 
 
 if os.path.exists(all_data_filepath):
@@ -67,8 +67,8 @@ for i in range(len(soa_names)):
 
 heaven_df = pd.DataFrame(heaven_csv)
 fft_stat_df = pd.DataFrame(fft_stat)
-heaven_df_path = os.path.join(data_path, "_dist2heavens.csv")
-fft_stat_path = os.path.join(data_path, "_fft_stats.csv")
+heaven_df_path = os.path.join(data_path, "_dist2heavens5.csv")
+fft_stat_path = os.path.join(data_path, "_fft_stats5.csv")
 heaven_df.to_csv(heaven_df_path)
 fft_stat_df.to_csv(fft_stat_path)
 
