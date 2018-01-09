@@ -245,7 +245,7 @@ class FFT(object):
         decision = self.structures[t_id][level]
         cur_selected = None
         for cue in list(data):
-            if cue in self.ignore or cue == self.target:
+            if cue in self.ignore or cue == self.target or cue not in self.selected_feature:
                 continue
             threshold = data[cue].median()
             for direction in "><":

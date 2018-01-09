@@ -15,17 +15,13 @@ class FFT(object):
         self.tree_cnt = cnt
         self.tree_depths = [0] * cnt
         self.best = -1
-
         self.target = "bug"
         self.ignore = {"name", "version", 'name.1', 'prediction'}
         self.criteria = "Dist2Heaven"
-
         self.data_name = ''
         self.train, self.test = None, None
-
         self.structures = None
         self.computed_cache = {}
-
         self.selected = [{} for _ in range(cnt)]
         self.tree_scores = [None] * cnt
         self.dist2heavens = [None] * cnt
