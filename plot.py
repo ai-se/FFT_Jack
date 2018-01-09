@@ -48,6 +48,7 @@ def plotROC(fft, soa, img_path="~/tmp"):
     legend.get_frame().set_facecolor('#CEE5DD')
     # plt.show()
     plt.savefig(img_path)
+    plt.close(fig)
 
 
 "Plot ROC"
@@ -109,6 +110,7 @@ def plotLOC(data, learners, names, img_path="~/tmp"):
     legend.get_frame().set_facecolor('#CEE5DD')
     # plt.show()
     plt.savefig(img_path)
+    plt.close(fig)
     return tmp
 
 
@@ -152,5 +154,6 @@ def plot_compare(fft1, fft2, img_path="~/tmp"):
     legend.get_frame().set_facecolor('#CEE5DD')
     # plt.show()
     plt.savefig(img_path)
+    plt.close(fig)
 
 

@@ -1,4 +1,5 @@
 """Helper functions."""
+import math
 import pickle
 import numpy as np
 from sklearn.metrics import auc
@@ -56,6 +57,7 @@ def get_score(criteria, metrics):   # The smaller the better
         score = -all_metrics[-ACC]
     elif criteria == "Dist2Heaven":
         score = all_metrics[-FPR] ** 2 + (1 - all_metrics[-REC]) ** 2
+        score = math.sqrt(score) / math.sqrt(2)
     elif criteria == "Gini":
         p1 = all_metrics[-PRE]  # target == 1 for the positive split
         p0 = 1 - all_metrics[-NPV]  # target == 1 for the negative split

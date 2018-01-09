@@ -33,22 +33,24 @@ for percent in [25, 50, 75, 100]:
     cnts = [collections.defaultdict(int) for _ in xrange(len(criterias))]
     print str(percent) + ' percent of features selected'
     f_cnt = percent / 100.0 * 20
-    all_data_filepath = os.path.join(data_path, "reduced_" + str(percent) + "_Data_16.pkl")
+    all_data_filepath = os.path.join(data_path, "_reduced_" + str(percent) + "_Data_16.pkl")
     all_data = load_obj(all_data_filepath) if os.path.exists(all_data_filepath) else {}
     for name, files in data.iteritems():
         if name not in all_data:
             print "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
             print name
             f_rankings = feature_rankings.loc[feature_rankings["Name"] == name[1:]].values[0]
-            f_selected = set(f_rankings[:f_cnt])
-            print "selected features are: "
-            print f_selected
+            f_selected = [t for t in list(f_rankings[1:f_cnt]) + ['bug'] if t != "name.1"]
+            print "selected features are: " + ", ".join(f_selected)
             paths = [os.path.join(data_path, file_name) for file_name in files]
             train_df = pd.concat([pd.read_csv(path) for path in paths[:-1]], ignore_index=True)
+            train_df = train_df[f_selected]
             test_df = pd.read_csv(paths[-1])
-            train_df, test_df = train_df.iloc[:, 3:], test_df.iloc[:, 3:]
+            test_df = test_df[f_selected]
+            # train_df, test_df = train_df.iloc[:, 3:], test_df.iloc[:, 3:]
             train_df['bug'] = train_df['bug'].apply(lambda x: 0 if x == 0 else 1)
             test_df['bug'] = test_df['bug'].apply(lambda x: 0 if x == 0 else 1)
+
             print "training on: " + ', '.join(files[:-1])
             print "testing on: " + files[-1]
             all_data[name] = {}
