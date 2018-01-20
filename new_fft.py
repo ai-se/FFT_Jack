@@ -47,7 +47,8 @@ class FFT(object):
             self.eval_tree(i)
             # data = self.test
             data = self.train
-            predictions = self.predict(data, i)
+            # self.predict will add the 'prediction' column to the data
+            self.predict(data, i)
             pos = data[data['prediction'] == 1].sort(columns=["loc"], ascending=[1])
             neg = data[data['prediction'] == 0].sort(columns=["loc"], ascending=[1])
             sorted_data = pd.concat([pos, neg])
@@ -199,7 +200,10 @@ class FFT(object):
                 for direction in "><":
                     undecided, metrics, loc_auc = self.eval_decision(data, cue, direction, threshold, decision)
                     tp, fp, tn, fn = self.update_metrics(level, self.max_depth, decision, metrics)
-                    if self.criteria == "LOC_AUC":
+                    # if the decision lead to no data, punish the score
+                    if sum([tp, fp, tn, fn]) == 0:
+                        score = float('inf')
+                    elif self.criteria == "LOC_AUC":
                         score = loc_auc
                     else:
                         score = get_score(self.criteria, [TP + tp, FP + fp, TN + tn, FN + fn])
@@ -211,6 +215,7 @@ class FFT(object):
                                         'metrics': [TP + tp, FP + fp, TN + tn, FN + fn], \
                                         # 'metrics': metrics,
                                         'score': score}
+                        x = 1
             self.computed_cache[structure] = cur_selected
         self.selected[t_id][level] = cur_selected['rule']
         self.performance_on_train[t_id][level] = cur_selected['metrics'] + get_performance(cur_selected['metrics'])
@@ -229,11 +234,11 @@ class FFT(object):
         print "\t" + "\t".join(map(str, self.performance_on_test[t_id][:4]))
 
         print "\t----- PERFORMANCES ON TEST DATA -----"
-        print PERFORMANCE + " \t" + "Dist2Heaven"
+        print PERFORMANCE + " \t".join(["Dist2Heaven", "LOC_ROC"])
         dist2heaven = get_score("Dist2Heaven", self.performance_on_test[t_id][:4])
         print "\t" + "\t".join(
             ["FFT(" + str(self.best) + ")"] + \
-            [str(x).ljust(5, "0") for x in self.performance_on_test[t_id][4:] + [dist2heaven]])
+            [str(x).ljust(5, "0") for x in self.performance_on_test[t_id][4:11] + [dist2heaven, self.loc_aucs[t_id]]])
             # map(str, ["FFT(" + str(self.best) + ")"] + self.performance_on_test[t_id][4:] + [dist2heaven]))
 
     "Get all possible tree structure"

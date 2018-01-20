@@ -24,7 +24,7 @@ def plotROC(fft, soa, img_path="~/tmp"):
     k = tmp[fft.criteria]
     s_id = fft.best
     for i in range(fft.tree_cnt):
-        metric = fft.performance_on_test[i]
+        metric = fft.performance_on_test[i][:11]
         roc[i] = [metric[-FPR], metric[-REC]]
         if i == s_id:
             continue
