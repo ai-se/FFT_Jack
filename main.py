@@ -56,9 +56,12 @@ for name, files in data.iteritems():
             fft.criteria = criteria
             fft.data_name = name
             fft.train, fft.test = train_df, test_df
-            fft.build_trees()
-            fft.eval_trees()
-            fft.find_best_tree()
+            fft.build_trees()               # build and get performance on test data
+            t_id = fft.find_best_tree()     # find the best tree on test data
+            fft.eval_trees()                # eval all the trees on train data
+            fft.print_tree(t_id)
+
+
             best_structure = fft.structures[fft.best]
             cnts[c][tuple(best_structure)] += 1
             soa.print_soa()

@@ -9,6 +9,7 @@ PERFORMANCE = " \t".join(["\tCLF", "PRE ", "REC", "SPE", "FPR", "NPV", "ACC", "F
 
 
 class FFT(object):
+
     def __init__(self, max_level=1):
         self.max_depth = max_level - 1
         cnt = 2 ** self.max_depth
@@ -31,6 +32,13 @@ class FFT(object):
         self.predictions = [None] * cnt
         self.loc_aucs = [None] * cnt
 
+    "Get the loc_auc for a specific tree"
+    def get_tree_loc_auc(self, data, i):
+        # self.predict will add/modify the 'prediction' column to the data
+        self.predict(data, i)
+        sorted_data = data.sort_values(by=["prediction", "loc"], ascending=[False, True])
+        return get_auc(sorted_data)
+
     "Build all possible tress."
 
     def build_trees(self):
@@ -38,6 +46,8 @@ class FFT(object):
         data = self.train
         for i in range(self.tree_cnt):
             self.grow(data, i, 0, [0, 0, 0, 0])
+            self.loc_aucs[i] = self.get_tree_loc_auc(data, i)
+
 
     "Evaluate all tress built on TEST data."
 
@@ -45,27 +55,38 @@ class FFT(object):
         for i in range(self.tree_cnt):
             # Get performance on TEST data.
             self.eval_tree(i)
-            # data = self.test
-            data = self.train
-            # self.predict will add the 'prediction' column to the data
-            self.predict(data, i)
-            pos = data[data['prediction'] == 1].sort_values(by=["loc"], ascending=True)
-            neg = data[data['prediction'] == 0].sort_values(by=["loc"], ascending=True)
-            sorted_data = pd.concat([pos, neg])
-            self.loc_aucs[i] = get_auc(sorted_data)
 
-    "Find the best tree based on the score."
+    "Evaluate the performance of the given tree on the TEST data."
+
+    def eval_tree(self, t_id):
+        if self.performance_on_test[t_id]:
+            return
+        depth = self.tree_depths[t_id]
+        self.node_descriptions[t_id] = [[] for _ in range(depth + 1)]
+        TP, FP, TN, FN = 0, 0, 0, 0
+        data = self.test
+        for level in range(depth + 1):
+            cue, direction, threshold, decision = self.selected[t_id][level]
+            undecided, metrics, loc_auc = self.eval_decision(data, cue, direction, threshold, decision)
+            tp, fp, tn, fn = self.update_metrics(level, depth, decision, metrics)
+            TP, FP, TN, FN = TP + tp, FP + fp, TN + tn, FN + fn
+            if len(undecided) == 0:
+                break
+            data = undecided
+        pre, rec, spec, fpr, npv, acc, f1 = get_performance([TP, FP, TN, FN])
+        self.performance_on_test[t_id] = [TP, FP, TN, FN, pre, rec, spec, fpr, npv, acc, f1]
+
+    "Find the best tree based on the score in TRAIN data."
 
     def find_best_tree(self):
         if self.tree_scores and self.tree_scores[0]:
             return
-        if not self.performance_on_test or not self.performance_on_test[0]:
-            self.eval_trees()
+        if not self.performance_on_train or not self.performance_on_train[0]:
+            self.grow()
         print "\t----- PERFORMANCES FOR ALL FFTs on Training Data -----"
         print PERFORMANCE + " \t" + self.criteria
         best = [-1, float('inf')]
         for i in range(self.tree_cnt):
-            # all_metrics = self.performance_on_test[i]
             all_metrics = self.performance_on_train[i][self.tree_depths[i]]
             if self.criteria == "LOC_AUC":
                 score = self.loc_aucs[i]
@@ -81,7 +102,7 @@ class FFT(object):
                  [score if self.criteria == "Dist2Heaven" else -score]])
         print "\tThe best tree found on training data is: FFT(" + str(best[0]) + ")"
         self.best = best[0]
-        self.print_tree(best[0])
+        return best[0]
 
     "Given how the decision is made, get the description for the node."
 
@@ -113,9 +134,11 @@ class FFT(object):
         except:
             return 1, 2, 3
         if decision == 1:
+            decided = pos
             undecided = neg
         else:
             pos, neg = neg, pos
+            decided = neg
             undecided = pos
         # get auc for loc.
         sorted_data = pd.concat([df.sort_values(by=["loc"], ascending=True) for df in [pos, neg]])
@@ -128,31 +151,8 @@ class FFT(object):
         # return undecided, [tp, fp, tn, fn, pre, rec, spec, fpr, npv, acc, f1]
         return undecided, map(len, [tp, fp, tn, fn]), loc_auc
 
-    "Evaluate the performance of the given tree on the TEST data."
 
-    def eval_tree(self, t_id):
-        if self.performance_on_test[t_id]:
-            return
-        depth = self.tree_depths[t_id]
-        self.node_descriptions[t_id] = [[] for _ in range(depth + 1)]
-        TP, FP, TN, FN = 0, 0, 0, 0
-        data = self.test
-        for level in range(depth + 1):
-            cue, direction, threshold, decision = self.selected[t_id][level]
-            undecided, metrics, loc_auc = self.eval_decision(data, cue, direction, threshold, decision)
-            tp, fp, tn, fn = self.update_metrics(level, depth, decision, metrics)
-            description = self.describe_decision(t_id, level, metrics)
-            self.node_descriptions[t_id][level] += [description]
-            TP, FP, TN, FN = TP + tp, FP + fp, TN + tn, FN + fn
-            if len(undecided) == 0:
-                break
-            data = undecided
-        description = self.describe_decision(t_id, level, metrics, reversed=True)
-        self.node_descriptions[t_id][level] += [description]
-
-        pre, rec, spec, fpr, npv, acc, f1 = get_performance([TP, FP, TN, FN])
-        self.performance_on_test[t_id] = [TP, FP, TN, FN, pre, rec, spec, fpr, npv, acc, f1]
-
+    "Given data and the specific tree id, add a 'prediction' column to the dataframe."
 
     def predict(self, data, t_id=-1):
         # predictions = pd.Series([None] * len(data))
@@ -176,7 +176,7 @@ class FFT(object):
         return self.predictions[t_id]
 
 
-    "Grow the t_id_th tree for the level with the given data"
+    "Grow the t_id_th tree for the level with the given data. Also save its performance on the TRAIN data"
 
     def grow(self, data, t_id, level, cur_performance):
         """
@@ -224,24 +224,58 @@ class FFT(object):
         self.performance_on_train[t_id][level] = cur_selected['metrics'] + get_performance(cur_selected['metrics'])
         self.grow(cur_selected['undecided'], t_id, level + 1, cur_selected['metrics'])
 
-    "Given tree id, print the specific tree and its performances."
+    # "describe a tree on the TEST data"
+    #
+    # def describe_tree(self, t_id):
+    #     data = self.test
+    #     depth = self.tree_depths[t_id]
+    #     for level in range(depth + 1):
+    #         cue, direction, threshold, decision = self.selected[t_id][level]
+    #         undecided, metrics, loc_auc = self.eval_decision(data, cue, direction, threshold, decision)
+    #         tp, fp, tn, fn = self.update_metrics(level, depth, decision, metrics)
+    #         description = self.describe_decision(t_id, level, metrics)
+    #         self.node_descriptions[t_id][level] += [description]
+    #         if len(undecided) == 0:
+    #             break
+    #         data = undecided
+    #     description = self.describe_decision(t_id, level, metrics, reversed=True)
+    #     self.node_descriptions[t_id][level] += [description]
+
+    "Given tree id, print the specific tree and its performances on the test data."
 
     def print_tree(self, t_id):
+        data = self.test
         depth = self.tree_depths[t_id]
+        if not self.node_descriptions[t_id]:
+            self.node_descriptions[t_id] = [[] for _ in range(depth + 1)]
         for i in range(depth + 1):
-            print self.node_descriptions[t_id][i][0]
+            if self.node_descriptions[t_id][i]:
+                print self.node_descriptions[t_id][i][0]
+            else:
+                cue, direction, threshold, decision = self.selected[t_id][i]
+                undecided, metrics, loc_auc = self.eval_decision(data, cue, direction, threshold, decision)
+                tp, fp, tn, fn = self.update_metrics(i, depth, decision, metrics)
+                description = self.describe_decision(t_id, i, metrics)
+                self.node_descriptions[t_id][i] += [description]
+                if len(undecided) == 0:
+                    break
+                data = undecided
+        description = self.describe_decision(t_id, i, metrics, reversed=True)
+        self.node_descriptions[t_id][i] += [description]
         print self.node_descriptions[t_id][i][1]
 
         print "\t----- CONFUSION MATRIX -----"
         print MATRIX
         print "\t" + "\t".join(map(str, self.performance_on_test[t_id][:4]))
 
-        print "\t----- PERFORMANCES ON TEST DATA -----"
-        print PERFORMANCE + " \tDist2Heaven"
         dist2heaven = get_score("Dist2Heaven", self.performance_on_test[t_id][:4])
+        loc_auc = -self.get_tree_loc_auc(self.test, t_id)
+
+        print "\t----- PERFORMANCES ON TEST DATA -----"
+        print PERFORMANCE + " \tD2H"+ " \tLOC"
         print "\t" + "\t".join(
             ["FFT(" + str(self.best) + ")"] + \
-            [str(x).ljust(5, "0") for x in self.performance_on_test[t_id][4:11] + [dist2heaven]])
+            [str(x).ljust(5, "0") for x in self.performance_on_test[t_id][4:11] + [dist2heaven, loc_auc]])
             # map(str, ["FFT(" + str(self.best) + ")"] + self.performance_on_test[t_id][4:] + [dist2heaven]))
 
     "Get all possible tree structure"
