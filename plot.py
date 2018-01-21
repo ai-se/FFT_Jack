@@ -63,7 +63,7 @@ def plotLOC(data, learners, names, img_path="~/tmp"):
     x, y = [0.001 * i for i in range(1000)], [0.001 * i for i in range(1000)]
     ax.scatter(x, y, s=4)
 
-    data.sort(columns=["bug", "loc"], ascending=[0, 1], inplace=True)
+    data.sort_values(by=["bug", "loc"], ascending=[False, True], inplace=True)
     x_sum = float(sum(data['loc']))
     x = data['loc'].apply(lambda t: t / x_sum)
     xx = subtotal(x)
@@ -94,7 +94,7 @@ def plotLOC(data, learners, names, img_path="~/tmp"):
         else:
             y = clf.predict(data.iloc[:, :-2]).tolist()
         data['prediction'] = y
-        data.sort(columns=["prediction", "loc"], ascending=[0, 1], inplace=True)
+        data.sort_values(by=["prediction", "loc"], ascending=[False, True], inplace=True)
         x = data['loc'].apply(lambda t: t / x_sum)
         xx = subtotal(x)
         yy = get_recall(data['bug'].values)

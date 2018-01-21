@@ -49,8 +49,8 @@ class FFT(object):
             data = self.train
             # self.predict will add the 'prediction' column to the data
             self.predict(data, i)
-            pos = data[data['prediction'] == 1].sort(columns=["loc"], ascending=[1])
-            neg = data[data['prediction'] == 0].sort(columns=["loc"], ascending=[1])
+            pos = data[data['prediction'] == 1].sort_values(by=["loc"], ascending=True)
+            neg = data[data['prediction'] == 0].sort_values(by=["loc"], ascending=True)
             sorted_data = pd.concat([pos, neg])
             self.loc_aucs[i] = get_auc(sorted_data)
 
@@ -77,7 +77,8 @@ class FFT(object):
                 best = [i, score]
             print "\t" + "\t".join(
                 ["FFT(" + str(i) + ")"] + \
-                [str(x).ljust(5, "0") for x in all_metrics[4:] + [score]])
+                [str(x).ljust(5, "0") for x in all_metrics[4:] + \
+                 [score if self.criteria == "Dist2Heaven" else -score]])
         print "\tThe best tree found on training data is: FFT(" + str(best[0]) + ")"
         self.best = best[0]
         self.print_tree(best[0])
@@ -88,6 +89,8 @@ class FFT(object):
         cue, direction, threshold, decision = self.selected[t_id][level]
         tp, fp, tn, fn = metrics
         results = ["\'Good\'", "\'Bug!\'"]
+        mappings = {">":"<=", "<":">="}
+        direction = mappings[direction] if reversed else direction+" "
         description = ("\t| " * (level + 1) + \
                        " ".join([cue, direction, str(threshold)]) + \
                        "\t--> " + results[1 - decision if reversed else decision]).ljust(30, " ")
@@ -115,7 +118,7 @@ class FFT(object):
             pos, neg = neg, pos
             undecided = pos
         # get auc for loc.
-        sorted_data = pd.concat([df.sort(columns=["loc"], ascending=[1]) for df in [pos, neg]])
+        sorted_data = pd.concat([df.sort_values(by=["loc"], ascending=True) for df in [pos, neg]])
         loc_auc = get_auc(sorted_data)
         tp = pos.loc[pos[self.target] == 1]
         fp = pos.loc[pos[self.target] == 0]
@@ -162,11 +165,11 @@ class FFT(object):
             cue, direction, threshold, decision = self.selected[t_id][level]
             undecided, metrics, loc_auc = self.eval_decision(data, cue, direction, threshold, decision)
             decided_idx = [i for i in data.index if i not in undecided.index]
-            original['prediction'][decided_idx] = decision
-            # original.iloc[data.index, 'prediction'] = decision
+            # original['prediction'][decided_idx] = decision
+            original.loc[decided_idx, 'prediction'] = decision
             data = undecided
-        # original.iloc[data.index, 'prediction'] = 1 if decision == 0 else 0
-        original['prediction'][undecided.index] = 1 if decision == 0 else 0
+        original.loc[data.index, 'prediction'] = 1 if decision == 0 else 0
+        # original['prediction'][undecided.index] = 1 if decision == 0 else 0
         if None in original['prediction']:
             print "ERROR!"
         self.predictions[t_id] = original['prediction'].values
@@ -234,11 +237,11 @@ class FFT(object):
         print "\t" + "\t".join(map(str, self.performance_on_test[t_id][:4]))
 
         print "\t----- PERFORMANCES ON TEST DATA -----"
-        print PERFORMANCE + " \t".join(["Dist2Heaven", "LOC_ROC"])
+        print PERFORMANCE + " \tDist2Heaven"
         dist2heaven = get_score("Dist2Heaven", self.performance_on_test[t_id][:4])
         print "\t" + "\t".join(
             ["FFT(" + str(self.best) + ")"] + \
-            [str(x).ljust(5, "0") for x in self.performance_on_test[t_id][4:11] + [dist2heaven, self.loc_aucs[t_id]]])
+            [str(x).ljust(5, "0") for x in self.performance_on_test[t_id][4:11] + [dist2heaven]])
             # map(str, ["FFT(" + str(self.best) + ")"] + self.performance_on_test[t_id][4:] + [dist2heaven]))
 
     "Get all possible tree structure"

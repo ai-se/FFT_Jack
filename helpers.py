@@ -103,4 +103,4 @@ def get_auc(data):
         ret = 0
     return ret
 
-print get_recall([0,0,0])
+# print get_recall([0,0,0])
