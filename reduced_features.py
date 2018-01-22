@@ -32,13 +32,13 @@ for percent in [25, 50, 75, 100]:
     p_opt_stat = []
     cnts = [collections.defaultdict(int) for _ in xrange(len(criterias))]
     print str(percent) + ' percent of features selected'
-    f_cnt = percent / 100.0 * 20
+    f_cnt = int(percent / 100.0 * 20)
     all_data_filepath = os.path.join(data_path, "_reduced_" + str(percent) + "_Data_16.pkl")
     all_data = load_obj(all_data_filepath) if os.path.exists(all_data_filepath) else {}
     for name, files in data.iteritems():
         if name not in all_data:
-            print "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-            print name
+            print '\n'+name
+            print "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
             f_rankings = feature_rankings.loc[feature_rankings["Name"] == name[1:]].values[0]
             f_selected = [t for t in list(f_rankings[1:f_cnt]) + ['bug'] if t != "name.1"]
             print "selected features are: " + ", ".join(f_selected)
@@ -51,23 +51,24 @@ for percent in [25, 50, 75, 100]:
             train_df['bug'] = train_df['bug'].apply(lambda x: 0 if x == 0 else 1)
             test_df['bug'] = test_df['bug'].apply(lambda x: 0 if x == 0 else 1)
 
-            print "training on: " + ', '.join(files[:-1])
-            print "testing on: " + files[-1]
+            print "training on:\t" + ', '.join(files[:-1])
+            print "testing on: \t" + files[-1]
             all_data[name] = {}
             soa = SOA(train=train_df, test=test_df)
             soa.get_performances()
             all_data[name]["SOA"] = soa
             all_data[name]["FFT"] = []
             for c, criteria in enumerate(criterias):
-                print "  ...................... " + criteria + " ......................"
+                print "\n  ................................ " + criteria + " ................................"
                 fft = FFT(5)
                 fft.selected_feature = f_selected
                 fft.criteria = criteria
                 fft.data_name = name
                 fft.train, fft.test = train_df, test_df
-                fft.build_trees()
-                fft.eval_trees()
-                fft.find_best_tree()
+                fft.build_trees()               # build and get performance on test data
+                t_id = fft.find_best_tree()     # find the best tree on test data
+                fft.eval_trees()                # eval all the trees on train data
+                fft.print_tree(t_id)
                 best_structure = fft.structures[fft.best]
                 cnts[c][tuple(best_structure)] += 1
                 soa.print_soa()

@@ -254,9 +254,9 @@ class FFT(object):
             else:
                 cue, direction, threshold, decision = self.selected[t_id][i]
                 undecided, metrics, loc_auc = self.eval_decision(data, cue, direction, threshold, decision)
-                tp, fp, tn, fn = self.update_metrics(i, depth, decision, metrics)
                 description = self.describe_decision(t_id, i, metrics)
                 self.node_descriptions[t_id][i] += [description]
+                print description
                 if len(undecided) == 0:
                     break
                 data = undecided
@@ -270,7 +270,6 @@ class FFT(object):
 
         dist2heaven = get_score("Dist2Heaven", self.performance_on_test[t_id][:4])
         loc_auc = -self.get_tree_loc_auc(self.test, t_id)
-
         print "\t----- PERFORMANCES ON TEST DATA -----"
         print PERFORMANCE + " \tD2H"+ " \tLOC"
         print "\t" + "\t".join(

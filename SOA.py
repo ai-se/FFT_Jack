@@ -26,7 +26,7 @@ def do_classification(train_data, test_data, train_label, test_label, clf='', is
     tp, fp, tn, fn = get_abcd(prediction, y_test)
     pre, rec, spec, fpr, npv, acc, f1 = get_performance([tp, fp, tn, fn])
     dist2heaven = get_score("Dist2Heaven", [tp, fp, tn, fn])
-    return [tp, fp, tn, fn, pre, rec, spec, fpr, npv, acc, f1], [dist2heaven]
+    return prediction, [tp, fp, tn, fn, pre, rec, spec, fpr, npv, acc, f1], dist2heaven
 
 
 class SOA(object):
@@ -43,6 +43,7 @@ class SOA(object):
         self.names = ['SL', 'NB', 'EM', 'SMO']
         self.performances = []
         self.dist2heavens = []
+        self.loc_aucs = []
 
     "Get performance of state of the art classifiers"
 
@@ -50,19 +51,19 @@ class SOA(object):
         # Note that the split here is DATA SENSITIVE
         train_data, train_label = self.train.iloc[:, :-1], self.train.iloc[:, -1]
         test_data, test_label = self.test.iloc[:, :-1], self.test.iloc[:, -1]
+        data = self.test
         for i, clf in enumerate(self.learners):
-            performance, dist2heaven = do_classification(train_data, test_data, train_label, test_label, clf, self.names[i] == "EM")
+            prediction, performance, dist2heaven = do_classification(train_data, test_data, train_label, test_label, clf, self.names[i] == "EM")
             self.performances += [performance]
             self.dist2heavens += [dist2heaven]
+            data['prediction'] = prediction
+            sorted_data = data.sort_values(by=["prediction", "loc"], ascending=[False, True])
+            self.loc_aucs += [get_auc(sorted_data)]
 
     def print_soa(self):
-        # print "======================================="
-        # print "\t----- STATE-OF-THE-ART PERFORMANCES -----"
-        # print PERFORMANCE
         for i in range(len(self.names)):
-
             print "\t" + self.names[i] + "    \t"+ \
-                  "\t".join([str(x).ljust(5, "0") for x in self.performances[i][4:] + self.dist2heavens[i]])
+                  "\t".join([str(x).ljust(5, "0") for x in self.performances[i][4:] + [self.dist2heavens[i], -self.loc_aucs[i]]])
 
 
 

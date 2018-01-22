@@ -60,8 +60,6 @@ for name, files in data.iteritems():
             t_id = fft.find_best_tree()     # find the best tree on test data
             fft.eval_trees()                # eval all the trees on train data
             fft.print_tree(t_id)
-
-
             best_structure = fft.structures[fft.best]
             cnts[c][tuple(best_structure)] += 1
             soa.print_soa()
