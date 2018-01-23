@@ -53,12 +53,15 @@ for name, files in data.iteritems():
         fft.criteria = criteria
         fft.data_name = name
         fft.train, fft.test = train_df, test_df
+        t0 = timeit.default_timer()
+        fft.build_trees()               # build and get performance on TEST data
         t1 = timeit.default_timer()
-        fft.build_trees()
+        t_id = fft.find_best_tree()     # find the best tree on test data
         t2 = timeit.default_timer()
-        fft.eval_trees()
+        fft.eval_trees()                # eval all the trees on TRAIN data
         t3 = timeit.default_timer()
-        run_time[criteria + "_build"] = round(t2 - t1, 2)
+        fft.print_tree(t_id)
+        run_time[criteria + "_build"] = round(t1 - t0, 2)
         run_time[criteria + "_eval"] = round(t3 - t2, 2)
     run_times += [run_time]
 
