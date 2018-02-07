@@ -17,22 +17,22 @@ data = {"DataClass":     ["DataClass.csv"],\
         "LongMethod": ["LongMethod.csv"]
         }
 criterias = ["Accuracy", "Dist2Heaven", "LOC_AUC"] # "Gini", "InfoGain"]
-all_data_filepath = os.path.join(data_path, "smells.pkl")
 target = "SMELLS"
 
-if os.path.exists(all_data_filepath):
-    all_data = load_obj(all_data_filepath)
+
+details_path = os.path.join(data_path, 'smell_details.pkl')
+if os.path.exists(details_path):
+    performances = load_obj(details_path)
 else:
-    all_data = {}
+    performances = collections.defaultdict(dict)
 
 p_opt_stat = []
 cnts = [collections.defaultdict(int) for _ in xrange(len(criterias))]
 all_performances = {}
-classifiers = {"DT", "RF", "LR", "kNN"}
+classifiers = {"DT", "RF", "LR", "kNN", "FFT-Accuracy", "FFT-Dist2Heaven"}
 
-performances = collections.defaultdict(dict)
 for name, file in data.iteritems():
-    if name not in all_data:
+    if name not in performances:
         print name + "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
         file_path = os.path.join(data_path, file[0])
         df = pd.read_csv(file_path)
@@ -43,6 +43,5 @@ for name, file in data.iteritems():
                                               target_label=1, folds=10, title=' + '.join([name, clf]))
 
 print 'done'
-details_path = os.path.join(data_path, 'performance_details_SOA.p')
-cPickle.dump(performances, open(details_path, 'wb'))
-
+if not os.path.exists(details_path):
+    save_obj(performances, details_path)

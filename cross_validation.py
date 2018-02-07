@@ -1,4 +1,4 @@
-import time
+import time, math
 import collections
 import numpy as np
 import pandas as pd
@@ -11,6 +11,8 @@ from sklearn import linear_model
 from random import randint, random, shuffle
 
 from ABCD import ABCD
+from new_fft import FFT
+from helpers import get_score
 
 seed = 666
 
@@ -49,6 +51,33 @@ def smote(data, num, k=5):
         corpus.append(datamade)
     corpus = np.array(corpus)
     return corpus
+
+
+"do-FFT"
+
+def do_FFT(train_data, test_data, train_label, test_label, clf=''):
+    train_label = pd.DataFrame(train_label, columns=['Target'])
+    train_label['Target'] = train_label['Target'].apply(lambda x: 1 if x == 'pos' else 0)
+    train_label.set_index(train_data.index, inplace=True)
+    train = pd.concat([train_data, train_label], axis=1)
+    test_label = pd.DataFrame(test_label, columns=['Target'])
+    test_label['Target'] = test_label['Target'].apply(lambda x: 1 if x == 'pos' else 0)
+    test_label.set_index(test_data.index, inplace=True)
+    test = pd.concat([test_data, test_label], axis=1)
+    fft = FFT(5)
+    fft.print_enabled = True
+    fft.criteria = clf.split('-')[1]
+    # fft.data_name = name
+    fft.target = train_label.columns.values[0]
+    fft.train, fft.test = train, test
+    fft.build_trees()               # build and get performance on TEST data
+    t_id = fft.find_best_tree()     # find the best tree on TRAIN data
+    fft.eval_trees()                # eval all the trees on TEST data
+    # best_structure = fft.structures[fft.best]
+    TP, FP, TN, FN, pre, rec, spec, fpr, npv, acc, f1 = fft.performance_on_test[t_id]
+    dist2heaven = (1-rec)**2 + (1-spec)**2
+    dist2heaven = math.sqrt(dist2heaven) / math.sqrt(2)
+    return pre, rec, acc, f1, dist2heaven
 
 
 "sk-learn"
@@ -111,20 +140,24 @@ def cross_val(clf='', data=[], label=[], target_label='', folds=10, title=''):
             num = int((len(pos_train) + len(neg_train)) / 2)
             pos_train = smote(pos_train, num, k=neighbors)
             neg_train = neg_train[np.random.choice(len(neg_train), num, replace=False)]
-        data_train = np.vstack((pos_train, neg_train))
-        data_test = np.vstack((pos_test, neg_test))
+        if isinstance(pos_train, pd.DataFrame):
+            data_train = pd.concat([pos_train, neg_train], axis=0)
+            data_test = pd.concat([pos_test, neg_test], axis=0)
+        else:
+            data_train = np.vstack((pos_train, neg_train))
+            data_test = np.vstack((pos_test, neg_test))
         label_train = ['pos'] * len(pos_train) + ['neg'] * len(neg_train)
         label_test = ['pos'] * len(pos_test) + ['neg'] * len(neg_test)
 
         "Shuffle"
         tmp = range(0, len(label_train))
         shuffle(tmp)
-        data_train = data_train[tmp]
+        data_train = data_train[tmp] if not isinstance(data_train, pd.DataFrame) else data_train.iloc[tmp]
         label_train = np.array(label_train)[tmp]
 
         tmp = range(0, len(label_test))
         shuffle(tmp)
-        data_test = data_test[tmp]
+        data_test = data_test[tmp] if not isinstance(data_test, pd.DataFrame) else data_test.iloc[tmp]
         label_test = np.array(label_test)[tmp]
 
         return data_train, data_test, label_train, label_test
@@ -151,7 +184,10 @@ def cross_val(clf='', data=[], label=[], target_label='', folds=10, title=''):
         neg = neg[tmp] if not isinstance(neg, pd.DataFrame) else neg.iloc[tmp]
         for index in range(folds):
             data_train, data_test, label_train, label_test = train_test(pos, neg, folds=folds, index=index)
-            p, r, a, f, d2h = do_classification(data_train, data_test, label_train, label_test, clf=clf)
+            if clf.startswith("FFT"):
+                p, r, a, f, d2h = do_FFT(data_train, data_test, label_train, label_test, clf=clf)
+            else:
+                p, r, a, f, d2h = do_classification(data_train, data_test, label_train, label_test, clf=clf)
             measures['precision'].append(p)
             measures['recall'].append(r)
             measures['accuracy'].append(a)

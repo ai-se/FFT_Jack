@@ -16,7 +16,7 @@ class FFT(object):
         self.tree_cnt = cnt
         self.tree_depths = [0] * cnt
         self.best = -1
-        self.target = "bug"
+        self.target = "" # "bug"
         self.ignore = {} # moved to main. # {"name", "version", 'name.1', 'prediction'}
         self.criteria = "Dist2Heaven"
         self.data_name = ''
@@ -31,9 +31,12 @@ class FFT(object):
         self.performance_on_test = [None] * cnt
         self.predictions = [None] * cnt
         self.loc_aucs = [None] * cnt
+        self.print_enabled = True
 
     "Get the loc_auc for a specific tree"
     def get_tree_loc_auc(self, data, i):
+        if "loc" not in data:
+            return 8
         # self.predict will add/modify the 'prediction' column to the data
         self.predict(data, i)
         sorted_data = data.sort_values(by=["prediction", "loc"], ascending=[False, True])
@@ -83,8 +86,9 @@ class FFT(object):
             return
         if not self.performance_on_train or not self.performance_on_train[0]:
             self.grow()
-        print "\t----- PERFORMANCES FOR ALL FFTs on Training Data -----"
-        print PERFORMANCE + " \t" + self.criteria
+        if self.print_enabled:
+            print "\t----- PERFORMANCES FOR ALL FFTs on Training Data -----"
+            print PERFORMANCE + " \t" + self.criteria
         best = [-1, float('inf')]
         for i in range(self.tree_cnt):
             all_metrics = self.performance_on_train[i][self.tree_depths[i]]
@@ -96,11 +100,13 @@ class FFT(object):
             self.dist2heavens[i] = get_score("Dist2Heaven", all_metrics[:4])
             if score < best[-1]:
                 best = [i, score]
-            print "\t" + "\t".join(
-                ["FFT(" + str(i) + ")"] + \
-                [str(x).ljust(5, "0") for x in all_metrics[4:] + \
-                 [score if self.criteria == "Dist2Heaven" else -score]])
-        print "\tThe best tree found on training data is: FFT(" + str(best[0]) + ")"
+            if self.print_enabled:
+                print "\t" + "\t".join(
+                    ["FFT(" + str(i) + ")"] + \
+                    [str(x).ljust(5, "0") for x in all_metrics[4:] + \
+                     [score if self.criteria == "Dist2Heaven" else -score]])
+        if self.print_enabled:
+            print "\tThe best tree found on training data is: FFT(" + str(best[0]) + ")"
         self.best = best[0]
         return best[0]
 
@@ -141,8 +147,11 @@ class FFT(object):
             decided = neg
             undecided = pos
         # get auc for loc.
-        sorted_data = pd.concat([df.sort_values(by=["loc"], ascending=True) for df in [pos, neg]])
-        loc_auc = get_auc(sorted_data)
+        if "loc" in pos and "loc" in neg:
+            sorted_data = pd.concat([df.sort_values(by=["loc"], ascending=True) for df in [pos, neg]])
+            loc_auc = get_auc(sorted_data)
+        else:
+            loc_auc = 0
         tp = pos.loc[pos[self.target] == 1]
         fp = pos.loc[pos[self.target] == 0]
         tn = neg.loc[neg[self.target] == 0]
@@ -262,20 +271,20 @@ class FFT(object):
                 data = undecided
         description = self.describe_decision(t_id, i, metrics, reversed=True)
         self.node_descriptions[t_id][i] += [description]
-        print self.node_descriptions[t_id][i][1]
-
-        print "\t----- CONFUSION MATRIX -----"
-        print MATRIX
-        print "\t" + "\t".join(map(str, self.performance_on_test[t_id][:4]))
-
         dist2heaven = get_score("Dist2Heaven", self.performance_on_test[t_id][:4])
         loc_auc = -self.get_tree_loc_auc(self.test, t_id)
-        print "\t----- PERFORMANCES ON TEST DATA -----"
-        print PERFORMANCE + " \tD2H"+ " \tLOC"
-        print "\t" + "\t".join(
-            ["FFT(" + str(self.best) + ")"] + \
-            [str(x).ljust(5, "0") for x in self.performance_on_test[t_id][4:11] + [dist2heaven, loc_auc]])
-            # map(str, ["FFT(" + str(self.best) + ")"] + self.performance_on_test[t_id][4:] + [dist2heaven]))
+        if self.print_enabled:
+            print self.node_descriptions[t_id][i][1]
+            print "\t----- CONFUSION MATRIX -----"
+            print MATRIX
+            print "\t" + "\t".join(map(str, self.performance_on_test[t_id][:4]))
+
+            print "\t----- PERFORMANCES ON TEST DATA -----"
+            print PERFORMANCE + " \tD2H"+ " \tLOC"
+            print "\t" + "\t".join(
+                ["FFT(" + str(self.best) + ")"] + \
+                [str(x).ljust(5, "0") for x in self.performance_on_test[t_id][4:11] + [dist2heaven, loc_auc]])
+                # map(str, ["FFT(" + str(self.best) + ")"] + self.performance_on_test[t_id][4:] + [dist2heaven]))
 
     "Get all possible tree structure"
 
