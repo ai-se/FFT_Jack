@@ -1,5 +1,5 @@
 from __future__ import division
-from pdb import set_trace
+import math
 
 class counter():
   def __init__(self, before, after, indx):
@@ -28,9 +28,11 @@ class counter():
       F1 = 2 * self.TP / (2 * self.TP + self.FP + self.FN)
       G = 2 * Sen * Spec / (Sen + Spec)
       G1 = Sen * Spec / (Sen + Spec)
-      return Sen, Prec, Spec, Acc, F, G
+      dist2heaven = (1-Sen)**2 + (1-Spec)**2
+      dist2heaven = math.sqrt(dist2heaven) / math.sqrt(2)
+      return Sen, Prec, Spec, Acc, F, G, dist2heaven
     except ZeroDivisionError:
-      return 0, 0, 0, 0, 0, 0
+      return 0, 0, 0, 0, 0, 0, 0
 
 
 class ABCD():

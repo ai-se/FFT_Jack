@@ -55,6 +55,7 @@ for name, files in data.iteritems():
             fft = FFT(5)
             fft.criteria = criteria
             fft.data_name = name
+            fft.ignore = {"name", "version", 'name.1', 'prediction'}
             fft.train, fft.test = train_df, test_df
             fft.build_trees()               # build and get performance on TEST data
             t_id = fft.find_best_tree()     # find the best tree on TRAIN data
