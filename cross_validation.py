@@ -65,7 +65,7 @@ def do_FFT(train_data, test_data, train_label, test_label, clf=''):
     test_label.set_index(test_data.index, inplace=True)
     test = pd.concat([test_data, test_label], axis=1)
     fft = FFT(5)
-    fft.print_enabled = True
+    fft.print_enabled = False
     fft.criteria = clf.split('-')[1]
     # fft.data_name = name
     fft.target = train_label.columns.values[0]
@@ -114,7 +114,7 @@ def do_classification(train_data, test_data, train_label, test_label, clf=''):
 "cross validation"
 
 
-def cross_val(clf='', data=[], label=[], target_label='', folds=10, title=''):
+def cross_val(clf='', data=[], label=[], target_label='', iterations=10, folds=10, title=''):
     "split for cross validation"
 
     def cross_split(corpus, folds, index):
@@ -175,7 +175,7 @@ def cross_val(clf='', data=[], label=[], target_label='', folds=10, title=''):
 
     start_time = time.time()
     measures = collections.defaultdict(list)
-    for i in range(folds):
+    for i in range(iterations):
         tmp = range(0, len(pos))
         shuffle(tmp)
         pos = pos[tmp] if not isinstance(pos, pd.DataFrame) else pos.iloc[tmp]
@@ -185,6 +185,7 @@ def cross_val(clf='', data=[], label=[], target_label='', folds=10, title=''):
         for index in range(folds):
             data_train, data_test, label_train, label_test = train_test(pos, neg, folds=folds, index=index)
             if clf.startswith("FFT"):
+                print i*10 + index
                 p, r, a, f, d2h = do_FFT(data_train, data_test, label_train, label_test, clf=clf)
             else:
                 p, r, a, f, d2h = do_classification(data_train, data_test, label_train, label_test, clf=clf)

@@ -2,6 +2,7 @@ import os
 import collections
 import pandas as pd
 import cPickle
+import csv
 
 from helpers import load_obj, save_obj
 from new_fft import FFT
@@ -16,20 +17,19 @@ data = {"DataClass":     ["DataClass.csv"],\
         "GodClass":     ["GodClass.csv"],\
         "LongMethod": ["LongMethod.csv"]
         }
-criterias = ["Accuracy", "Dist2Heaven", "LOC_AUC"] # "Gini", "InfoGain"]
 target = "SMELLS"
 
 
-details_path = os.path.join(data_path, 'smell_details.pkl')
+details_path = os.path.join(data_path, 'smell_details_38.pkl')
+csv_path = os.path.join(data_path, 'smell_details_38.csv')
 if os.path.exists(details_path):
     performances = load_obj(details_path)
 else:
     performances = collections.defaultdict(dict)
 
 p_opt_stat = []
-cnts = [collections.defaultdict(int) for _ in xrange(len(criterias))]
 all_performances = {}
-classifiers = {"DT", "RF", "LR", "kNN", "FFT-Accuracy", "FFT-Dist2Heaven"}
+classifiers = ["DT", "RF", "LR", "kNN", "FFT-Accuracy", "FFT-Dist2Heaven"]
 
 for name, file in data.iteritems():
     if name not in performances:
@@ -40,8 +40,13 @@ for name, file in data.iteritems():
         for i, clf in enumerate(classifiers):
             print clf + "````````````````````````````````````"
             performances[name][clf] = cross_val(clf=clf, data=df.drop(columns=[target]), label=df[target],
-                                              target_label=1, folds=10, title=' + '.join([name, clf]))
+                                              target_label=1, iterations=8, folds=3, title=' + '.join([name, clf]))
+    else:
+        csv_path = os.path.join(data_path, name + "_performance.csv")
+        tmp = pd.DataFrame(performances[name])
+        tmp.to_csv(csv_path)
 
-print 'done'
 if not os.path.exists(details_path):
     save_obj(performances, details_path)
+
+print 'done'

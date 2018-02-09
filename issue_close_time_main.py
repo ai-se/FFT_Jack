@@ -11,7 +11,7 @@ from cross_validation import cross_val
 
 
 folders = ["1 day"] + map(lambda x: str(x) + " days", [7, 14, 30, 90, 180, 365])
-classifiers = {"DT", "RF", "LR", "kNN", "FFT-Accuracy", "FFT-Dist2Heaven"}
+classifiers = ["DT", "RF", "LR", "kNN", "FFT-Accuracy", "FFT-Dist2Heaven"]
 target = "timeOpen"
 
 cwd = os.getcwd()
@@ -35,9 +35,9 @@ for folder in folders:
                 for i, clf in enumerate(classifiers):
                     print clf + "````````````````````````````````````"
                     performances[folder][file][clf] = cross_val(clf=clf, data=df.drop(columns=[target]), label=df[target],
-                                                        target_label=1, folds=10, title=' + '.join([folder, file, clf]))
+                                                        target_label=1, iterations=10, folds=10, title=' + '.join([folder, file, clf]))
 
-print 'done'
 if not os.path.exists(details_path):
     save_obj(performances, details_path)
 
+print 'done'
