@@ -9,7 +9,7 @@ import cPickle
 
 cwd = os.getcwd()
 data_path = os.path.join(cwd, "data", "smell")
-details_path = os.path.join(data_path, 'smell_details.pkl')
+details_path = os.path.join(data_path, 'smell_details_38-more.pkl')
 details = cPickle.load(open(details_path, 'rb'))
 
 n1, n2, n3, n4 = "DataClass", "FeatureEnvy", "GodClass", "LongMethod"
@@ -37,7 +37,7 @@ for i, clf in enumerate(classifiers):
     data.append(tmp_bar)
 
 layout = go.Layout(
-    title="Bad Smell",
+    title="Bad Smell - 20 Splits",
     yaxis=dict(
         title='Distance to Heaven',
         zeroline=False
@@ -49,4 +49,4 @@ layout = go.Layout(
     boxmode='group'
 )
 fig = go.Figure(data=data, layout=layout)
-py.plot(fig)
+py.plot(fig, filename="Smell - 8x3 CV - 20 Splits")

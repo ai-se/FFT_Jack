@@ -95,9 +95,9 @@ def do_classification(train_data, test_data, train_label, test_label, clf=''):
     clf.fit(train_data, train_label)
     prediction = clf.predict(test_data)
     abcd = ABCD(before=test_label, after=prediction)
-    D2H = np.array([k.stats()[-1] for k in abcd()])
     F = np.array([k.stats()[4] for k in abcd()])
     A = np.array([k.stats()[3] for k in abcd()])
+    S = np.array([k.stats()[2] for k in abcd()])
     P = np.array([k.stats()[1] for k in abcd()])
     R = np.array([k.stats()[0] for k in abcd()])
     labeltwo = list(set(test_label))
@@ -106,7 +106,9 @@ def do_classification(train_data, test_data, train_label, test_label, clf=''):
     else:
         labelone = 1
     try:
-        return P[labelone], R[labelone], A[labelone], F[labelone], D2H[labelone]
+        D2H = (1-R[labelone])**2 + (1-S[labelone])**2
+        D2H = math.sqrt(D2H) / math.sqrt(2)
+        return P[labelone], R[labelone], A[labelone], F[labelone], D2H
     except:
         pass
 

@@ -208,26 +208,27 @@ class FFT(object):
             for cue in list(data):
                 if cue in self.ignore or cue == self.target:
                     continue
-                threshold = data[cue].median()
-                for direction in "><":
-                    undecided, metrics, loc_auc = self.eval_decision(data, cue, direction, threshold, decision)
-                    tp, fp, tn, fn = self.update_metrics(level, self.max_depth, decision, metrics)
-                    # if the decision lead to no data, punish the score
-                    if sum([tp, fp, tn, fn]) == 0:
-                        score = float('inf')
-                    elif self.criteria == "LOC_AUC":
-                        score = loc_auc
-                    else:
-                        score = get_score(self.criteria, [TP + tp, FP + fp, TN + tn, FN + fn])
-                    # score = get_score(self.criteria, metrics)
-                    # if not cur_selected or metrics[goal] > self.performance_on_train[t_id][level][cur_selected][goal]:
-                    if not cur_selected or score < cur_selected['score']:
-                        cur_selected = {'rule': (cue, direction, threshold, decision), \
-                                        'undecided': undecided, \
-                                        'metrics': [TP + tp, FP + fp, TN + tn, FN + fn], \
-                                        # 'metrics': metrics,
-                                        'score': score}
-                        x = 1
+                #threshold = data[cue].median()
+                for threshold in set(data[cue].quantile([x/20.0 for x in range(1, 20)], interpolation='midpoint')):
+                    for direction in "><":
+                        undecided, metrics, loc_auc = self.eval_decision(data, cue, direction, threshold, decision)
+                        tp, fp, tn, fn = self.update_metrics(level, self.max_depth, decision, metrics)
+                        # if the decision lead to no data, punish the score
+                        if sum([tp, fp, tn, fn]) == 0:
+                            score = float('inf')
+                        elif self.criteria == "LOC_AUC":
+                            score = loc_auc
+                        else:
+                            score = get_score(self.criteria, [TP + tp, FP + fp, TN + tn, FN + fn])
+                        # score = get_score(self.criteria, metrics)
+                        # if not cur_selected or metrics[goal] > self.performance_on_train[t_id][level][cur_selected][goal]:
+                        if not cur_selected or score < cur_selected['score']:
+                            cur_selected = {'rule': (cue, direction, threshold, decision), \
+                                            'undecided': undecided, \
+                                            'metrics': [TP + tp, FP + fp, TN + tn, FN + fn], \
+                                            # 'metrics': metrics,
+                                            'score': score}
+                            x = 1
             self.computed_cache[structure] = cur_selected
         self.selected[t_id][level] = cur_selected['rule']
         self.performance_on_train[t_id][level] = cur_selected['metrics'] + get_performance(cur_selected['metrics'])

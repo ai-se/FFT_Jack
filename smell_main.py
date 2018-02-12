@@ -20,8 +20,8 @@ data = {"DataClass":     ["DataClass.csv"],\
 target = "SMELLS"
 
 
-details_path = os.path.join(data_path, 'smell_details_38.pkl')
-csv_path = os.path.join(data_path, 'smell_details_38.csv')
+details_path = os.path.join(data_path, 'smell_details_38-more.pkl')
+csv_path = os.path.join(data_path, 'smell_details_38-more.csv')
 if os.path.exists(details_path):
     performances = load_obj(details_path)
 else:
