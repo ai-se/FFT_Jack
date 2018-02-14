@@ -5,9 +5,6 @@ import cPickle
 import csv
 
 from helpers import load_obj, save_obj
-from new_fft import FFT
-from SOA import SOA
-from plot import plotROC, plotLOC, plot_compare
 from cross_validation import cross_val
 
 cwd = os.getcwd()
@@ -20,8 +17,8 @@ data = {"DataClass":     ["DataClass.csv"],\
 target = "SMELLS"
 
 
-details_path = os.path.join(data_path, 'smell_details_38-more.pkl')
-csv_path = os.path.join(data_path, 'smell_details_38-more.csv')
+details_path = os.path.join(data_path, 'smell_details_38-MDLP.pkl')
+csv_path = os.path.join(data_path, 'smell_details_38-MDLP.csv')
 if os.path.exists(details_path):
     performances = load_obj(details_path)
 else:
@@ -29,7 +26,7 @@ else:
 
 p_opt_stat = []
 all_performances = {}
-classifiers = ["DT", "RF", "LR", "kNN", "FFT-Accuracy", "FFT-Dist2Heaven"]
+classifiers = ["DT", "RF", "LR", "kNN", "FFT-Dist2Heaven"]
 
 for name, file in data.iteritems():
     if name not in performances:

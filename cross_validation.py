@@ -65,6 +65,7 @@ def do_FFT(train_data, test_data, train_label, test_label, clf=''):
     test_label.set_index(test_data.index, inplace=True)
     test = pd.concat([test_data, test_label], axis=1)
     fft = FFT(5)
+    fft.split_method = "MDLP"
     fft.print_enabled = False
     fft.criteria = clf.split('-')[1]
     # fft.data_name = name
@@ -73,6 +74,7 @@ def do_FFT(train_data, test_data, train_label, test_label, clf=''):
     fft.build_trees()               # build and get performance on TEST data
     t_id = fft.find_best_tree()     # find the best tree on TRAIN data
     fft.eval_trees()                # eval all the trees on TEST data
+    # fft.print_tree(t_id)
     # best_structure = fft.structures[fft.best]
     TP, FP, TN, FN, pre, rec, spec, fpr, npv, acc, f1 = fft.performance_on_test[t_id]
     dist2heaven = (1-rec)**2 + (1-spec)**2

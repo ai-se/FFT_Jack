@@ -4,27 +4,24 @@ import pandas as pd
 import cPickle
 
 from helpers import load_obj, save_obj
-from new_fft import FFT
-from SOA import SOA
-from plot import plotROC, plotLOC, plot_compare
 from cross_validation import cross_val
 
 
 folders = ["1 day"] + map(lambda x: str(x) + " days", [7, 14, 30, 90, 180, 365])
-# folders = folders[1]
-classifiers = ["DT", "RF", "LR", "kNN", "FFT-Accuracy", "FFT-Dist2Heaven"]
+classifiers = ["DT", "RF", "LR", "kNN", "FFT-Dist2Heaven"]
+# classifiers = ["FFT-Dist2Heaven"]
 target = "timeOpen"
 
 cwd = os.getcwd()
 data_path = os.path.join(cwd, "data", "issue_close_time")
-details_path = os.path.join(data_path, 'issue_close_time_details_5x10_more_7days.pkl')
+details_path = os.path.join(data_path, 'issue_close_time_details_5x10_mdlp_365.pkl')
 if os.path.exists(details_path):
     performances = load_obj(details_path)
 else:
     performances = {}
 
 # for folder in folders:
-folder = folders[1]
+folder = folders[6]
 if folder not in performances:
     performances[folder] = collections.defaultdict(dict)
     folder_path = os.path.join(data_path, folder)

@@ -9,19 +9,19 @@ import cPickle
 
 cwd = os.getcwd()
 data_path = os.path.join(cwd, "data", "issue_close_time")
-details_path = os.path.join(data_path, 'issue_close_time_details_5x10_more_7days.pkl')
+details_path = os.path.join(data_path, 'issue_close_time_details_5x10_mdlp_30.pkl')
 details = cPickle.load(open(details_path, 'rb'))
 
 # folder = "1 day"
-folder = "7 days"
+# folder = "7 days"
 # folder = "14 days"
-# folder = "30 days"
+folder = "30 days"
 # folder = "90 days"
 # folder = "180 days"
 # folder = "365 days"
 details = details[folder]
 titles = details.keys()
-classifiers = ["DT", "RF", "LR", "kNN", "FFT-Accuracy", "FFT-Dist2Heaven"]
+classifiers = ["DT", "RF", "LR", "kNN", "FFT-Dist2Heaven"]
 colors = ["#AED6F1", "#5DADE2", "#2874A6", "#1B4F72", "#FF5722", "#E53935"]
 
 l = len(details[titles[0]][classifiers[0]]['dist2heaven'])
@@ -45,7 +45,7 @@ for i, clf in enumerate(classifiers):
     data.append(tmp_bar)
 
 layout = go.Layout(
-    title=folder + ' 5x10 cross-val',
+    title=folder + ' 5x10 cross-val MDLP',
     yaxis=dict(
         title='Distance to Heaven',
         zeroline=False
@@ -57,4 +57,4 @@ layout = go.Layout(
     boxmode='group'
 )
 fig = go.Figure(data=data, layout=layout)
-py.plot(fig, filename=folder + " - 5x10 CV - More Split")
+py.plot(fig, filename=folder + " - 5x10 CV - MDLP")
