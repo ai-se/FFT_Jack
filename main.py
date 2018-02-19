@@ -23,7 +23,7 @@ data = {"@ivy":     ["ivy-1.1.csv", "ivy-1.4.csv", "ivy-2.0.csv"],\
         }
 criterias = ["Accuracy", "Dist2Heaven", "LOC_AUC"] # "Gini", "InfoGain"]
 
-all_data_filepath = os.path.join(data_path, "fixed_NewData_16.pkl")
+all_data_filepath = os.path.join(data_path, "fixed_NewData_16_x.pkl")
 
 
 if os.path.exists(all_data_filepath):

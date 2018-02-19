@@ -65,7 +65,7 @@ def do_FFT(train_data, test_data, train_label, test_label, clf=''):
     test_label.set_index(test_data.index, inplace=True)
     test = pd.concat([test_data, test_label], axis=1)
     fft = FFT(5)
-    fft.split_method = "MDLP"
+    fft.split_method = "median"
     fft.print_enabled = False
     fft.criteria = clf.split('-')[1]
     # fft.data_name = name
