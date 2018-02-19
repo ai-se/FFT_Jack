@@ -120,7 +120,9 @@ class FFT(object):
         results = ["\'True\'", "\'False\'"]
         if type(threshold) != type(np.ndarray(1)):
             mappings = {">":"<=", "<":">="}
-            direction = mappings[direction] if reversed else direction+" "
+        else:
+            mappings = {"inside":"outside", "outside":"inside"}
+        direction = mappings[direction] if reversed else direction+" "
         description = ("\t| " * (level + 1) + \
                        " ".join([cue, direction, str(threshold)]) + \
                        "\t--> " + results[1 - decision if reversed else decision]).ljust(30, " ")
@@ -290,7 +292,16 @@ class FFT(object):
                         except:
                             print 'ha'
                         interval = interval[0]
-                        cur_selected = self.eval_range_split(level, cur_selected, cur_performance, data, cue, indexes, interval, decision)
+                        if interval[0] == float('-inf'):
+                            threshold = interval[1]
+                            for direction in "><":
+                                cur_selected = self.eval_point_split(level, cur_selected, cur_performance, data, cue, direction, threshold, decision)
+                        elif interval[1] == float('inf'):
+                            threshold = interval[0]
+                            for direction in "><":
+                                cur_selected = self.eval_point_split(level, cur_selected, cur_performance, data, cue, direction, threshold, decision)
+                        else:
+                            cur_selected = self.eval_range_split(level, cur_selected, cur_performance, data, cue, indexes, interval, decision)
                     continue
                 elif self.split_method == "percentile":
                     thresholds = set(data[cue].quantile([x/20.0 for x in range(1, 20)], interpolation='midpoint'))

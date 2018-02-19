@@ -9,13 +9,13 @@ import cPickle
 
 cwd = os.getcwd()
 data_path = os.path.join(cwd, "data", "smell")
-details_path = os.path.join(data_path, 'smell_details_38-more.pkl')
+details_path = os.path.join(data_path, 'smell_details_38-MDLP.pkl')
 details = cPickle.load(open(details_path, 'rb'))
 
 n1, n2, n3, n4 = "DataClass", "FeatureEnvy", "GodClass", "LongMethod"
 t1, t2, t3, t4 = "DataClass", "FeatureEnvy", "GodClass", "LongMethod"
 
-classifiers = ["DT", "RF", "LR", "kNN", "FFT-Accuracy", "FFT-Dist2Heaven"]
+classifiers = ["DT", "RF", "LR", "kNN", "FFT-Dist2Heaven"]
 colors = ["#AED6F1", "#5DADE2", "#2874A6", "#1B4F72", "#FF5722", "#E53935"]
 
 data = []

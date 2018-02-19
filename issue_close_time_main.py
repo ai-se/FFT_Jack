@@ -14,7 +14,7 @@ target = "timeOpen"
 
 cwd = os.getcwd()
 data_path = os.path.join(cwd, "data", "issue_close_time")
-details_path = os.path.join(data_path, 'issue_close_time_details_5x10_mdlp_365.pkl')
+details_path = os.path.join(data_path, 'issue_close_time_details_5x10_median_365.pkl')
 if os.path.exists(details_path):
     performances = load_obj(details_path)
 else:
